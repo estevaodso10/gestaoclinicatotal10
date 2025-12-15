@@ -24,6 +24,10 @@ const InventoryPage: React.FC = () => {
     itemName: ''
   });
 
+  // --- SORTING ---
+  // Ordenar inventário alfabeticamente
+  const sortedInventory = [...inventory].sort((a, b) => a.name.localeCompare(b.name));
+
   // --- CRUD HANDLERS ---
   const openModal = (item?: InventoryItem) => {
     if (item) {
@@ -166,7 +170,7 @@ const InventoryPage: React.FC = () => {
       {/* STOCK TAB */}
       {activeTab === 'STOCK' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {inventory.map(item => (
+            {sortedInventory.map(item => (
                 <div key={item.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center space-x-3">

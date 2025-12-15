@@ -15,6 +15,10 @@ const ProfessionalInventoryPage: React.FC = () => {
     .filter(l => l.userId === currentUser.id)
     .sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
   
+  // --- SORTING ---
+  // Ordenar inventário alfabeticamente para a lista de solicitação
+  const sortedInventory = [...inventory].sort((a, b) => a.name.localeCompare(b.name));
+
   const handleRequest = (itemId: string) => {
       const success = requestLoan(currentUser.id, itemId);
       if(success) {
@@ -120,7 +124,7 @@ const ProfessionalInventoryPage: React.FC = () => {
                 <p className="text-sm text-gray-500 mb-6">Selecione um item abaixo para registrar a retirada.</p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {inventory.map(item => {
+                    {sortedInventory.map(item => {
                         const isAvailable = item.availableQuantity > 0;
                         return (
                             <div key={item.id} className={`bg-white p-5 rounded-xl shadow-sm border ${isAvailable ? 'border-gray-100' : 'border-gray-200 bg-gray-50'} transition`}>
