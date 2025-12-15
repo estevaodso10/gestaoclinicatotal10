@@ -1,5 +1,5 @@
 {
-  "name": "Gestor ClinicFlow",
+  "name": "ClinicFlow - Gestão de Salas",
   "description": "Um sistema abrangente de gestão de aluguel de salas para clínicas multidisciplinares, com painéis baseados em função, detecção de conflitos de agenda e controle de inventário.",
   "requestFramePermissions": []
 }
