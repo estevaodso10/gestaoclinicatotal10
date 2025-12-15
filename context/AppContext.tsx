@@ -65,6 +65,17 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const SUPABASE_URL = 'https://dqqcozscupcrsafwlkvh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxcWNvenNjdXBjcnNhZndsa3ZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MzY1NjMsImV4cCI6MjA4MTMxMjU2M30.Y67DFz-8RDbYszmq4rMRQe8FTVA5qT3rt6SNSKtuGpM';
 
+// Helper para gerar UUID compatível com navegadores antigos
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   
@@ -252,7 +263,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // ROOMS
   const addRoom = async (data: Omit<Room, 'id'>) => {
-      const { error } = await supabase.from('rooms').insert(data);
+      // Gera ID manualmente
+      const newId = generateUUID();
+      const { error } = await supabase.from('rooms').insert({ ...data, id: newId });
       if (error) {
           console.error('Error adding room:', error);
           alert(`Erro ao adicionar sala: ${error.message}`);
@@ -270,6 +283,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
   const deleteRoom = async (id: string) => {
+      // 1. Remover alocações dependentes primeiro (Simulando CASCADE)
+      await supabase.from('allocations').delete().eq('roomId', id);
+
+      // 2. Remover a sala
       const { error } = await supabase.from('rooms').delete().eq('id', id);
       if (error) {
           console.error('Error deleting room:', error);
@@ -286,8 +303,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         a.roomId === data.roomId && a.day === data.day && a.shift === data.shift
       );
       if (conflict) return { success: false, message: 'Conflito de horário detectado.' };
-
-      const { error } = await supabase.from('allocations').insert(data);
+      
+      const newId = generateUUID();
+      const { error } = await supabase.from('allocations').insert({ ...data, id: newId });
       if(error) return { success: false, message: error.message };
       refreshData();
       return { success: true, message: 'Alocado com sucesso' };
@@ -304,7 +322,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // INVENTORY
   const addInventoryItem = async (data: Omit<InventoryItem, 'id' | 'availableQuantity'>) => {
-      const { error } = await supabase.from('inventory').insert({ ...data, availableQuantity: data.totalQuantity });
+      const newId = generateUUID();
+      const { error } = await supabase.from('inventory').insert({ ...data, id: newId, availableQuantity: data.totalQuantity });
       if (error) {
           console.error('Error adding inventory item:', error);
           alert(`Erro ao adicionar item: ${error.message}`);
@@ -351,8 +370,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       
       // 2. Create Loan
+      const newId = generateUUID();
       const { error } = await supabase.from('loans').insert({
-          userId, itemName: item.name, quantity: 1, requestDate: new Date().toISOString(), status: 'ACTIVE'
+          id: newId, userId, itemName: item.name, quantity: 1, requestDate: new Date().toISOString(), status: 'ACTIVE'
       });
       
       if (error) {
@@ -389,7 +409,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // PAYMENTS
   const addPayment = async (data: Omit<Payment, 'id'>) => {
-      const { error } = await supabase.from('payments').insert({ ...data, status: 'PENDING' });
+      const newId = generateUUID();
+      const { error } = await supabase.from('payments').insert({ ...data, id: newId, status: 'PENDING' });
       if (error) {
           console.error('Error adding payment:', error);
           alert(`Erro ao adicionar pagamento: ${error.message}`);
@@ -430,7 +451,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // EVENTS & REGISTRATIONS
   const addEvent = async (data: Omit<ClinicEvent, 'id'>) => {
-      const { error } = await supabase.from('events').insert(data);
+      const newId = generateUUID();
+      const { error } = await supabase.from('events').insert({ ...data, id: newId });
       if (error) {
           console.error('Error adding event:', error);
           alert(`Erro ao adicionar evento: ${error.message}`);
@@ -448,6 +470,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
   const deleteEvent = async (id: string) => {
+      // 1. Remover inscrições dependentes (Cascade Manual)
+      await supabase.from('registrations').delete().eq('eventId', id);
+
       const { error } = await supabase.from('events').delete().eq('id', id);
       if (error) {
           console.error('Error deleting event:', error);
@@ -457,7 +482,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
   const addRegistration = async (data: Omit<EventRegistration, 'id'>) => {
-      const { error } = await supabase.from('registrations').insert(data);
+      const newId = generateUUID();
+      const { error } = await supabase.from('registrations').insert({ ...data, id: newId });
       if (error) {
           console.error('Error adding registration:', error);
           alert(`Erro ao realizar inscrição: ${error.message}`);
@@ -477,7 +503,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // PATIENTS
   const addPatient = async (data: Omit<Patient, 'id'>) => {
-      const { error } = await supabase.from('patients').insert(data);
+      const newId = generateUUID();
+      const { error } = await supabase.from('patients').insert({ ...data, id: newId });
       if (error) {
           console.error('Error adding patient:', error);
           alert(`Erro ao adicionar paciente: ${error.message}`);
