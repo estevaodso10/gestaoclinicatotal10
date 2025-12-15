@@ -39,10 +39,13 @@ const Login: React.FC = () => {
             throw signInError;
         }
         
-        // Navigation happens in useEffect when currentUser is detected via Auth State Listener in AppContext
+        // SUCESSO: Não chamamos setIsLoading(false) aqui.
+        // Mantemos o loading ativo enquanto o AppContext atualiza o currentUser
+        // e o useEffect acima dispara a navegação.
+        
     } catch (err: any) {
+        // ERRO: Paramos o loading para o usuário tentar novamente
         setError(err.message || 'Erro na autenticação');
-    } finally {
         setIsLoading(false);
     }
   };
