@@ -177,32 +177,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // USERS
   const addUser = async (userData: Omit<User, 'id'>) => {
-      await supabase.from('users').insert(userData);
-      refreshData();
+      const { error } = await supabase.from('users').insert(userData);
+      if (error) {
+          console.error('Error adding user:', error);
+          alert(`Erro ao adicionar usuário: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const updateUser = async (user: User) => {
-      await supabase.from('users').update(user).eq('id', user.id);
-      refreshData();
+      const { error } = await supabase.from('users').update(user).eq('id', user.id);
+      if (error) {
+          console.error('Error updating user:', error);
+          alert(`Erro ao atualizar usuário: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const toggleUserStatus = async (id: string) => {
       const user = users.find(u => u.id === id);
       if(!user) return;
-      await supabase.from('users').update({ isActive: !user.isActive }).eq('id', id);
-      refreshData();
+      const { error } = await supabase.from('users').update({ isActive: !user.isActive }).eq('id', id);
+      if (error) {
+          console.error('Error toggling user status:', error);
+          alert(`Erro ao alterar status: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
 
   // ROOMS
   const addRoom = async (data: Omit<Room, 'id'>) => {
-      await supabase.from('rooms').insert(data);
-      refreshData();
+      const { error } = await supabase.from('rooms').insert(data);
+      if (error) {
+          console.error('Error adding room:', error);
+          alert(`Erro ao adicionar sala: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const updateRoom = async (data: Room) => {
-      await supabase.from('rooms').update(data).eq('id', data.id);
-      refreshData();
+      const { error } = await supabase.from('rooms').update(data).eq('id', data.id);
+      if (error) {
+          console.error('Error updating room:', error);
+          alert(`Erro ao atualizar sala: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const deleteRoom = async (id: string) => {
-      await supabase.from('rooms').delete().eq('id', id);
-      refreshData();
+      const { error } = await supabase.from('rooms').delete().eq('id', id);
+      if (error) {
+          console.error('Error deleting room:', error);
+          alert(`Erro ao excluir sala: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
 
   // ALLOCATIONS
@@ -219,27 +249,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { success: true, message: 'Alocado com sucesso' };
   };
   const deleteAllocation = async (id: string) => {
-      await supabase.from('allocations').delete().eq('id', id);
-      refreshData();
+      const { error } = await supabase.from('allocations').delete().eq('id', id);
+      if (error) {
+        console.error('Error deleting allocation:', error);
+        alert(`Erro ao desalocar: ${error.message}`);
+      } else {
+        refreshData();
+      }
   };
 
   // INVENTORY
   const addInventoryItem = async (data: Omit<InventoryItem, 'id' | 'availableQuantity'>) => {
-      await supabase.from('inventory').insert({ ...data, availableQuantity: data.totalQuantity });
-      refreshData();
+      const { error } = await supabase.from('inventory').insert({ ...data, availableQuantity: data.totalQuantity });
+      if (error) {
+          console.error('Error adding inventory item:', error);
+          alert(`Erro ao adicionar item: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const updateInventoryItem = async (id: string, name: string, totalQuantity: number) => {
       const currentLoansCount = loans.filter(l => l.itemName === name && l.status === 'ACTIVE').reduce((acc, l) => acc + l.quantity, 0);
       const newAvailable = totalQuantity - currentLoansCount;
       
-      await supabase.from('inventory').update({ 
+      const { error } = await supabase.from('inventory').update({ 
           name, totalQuantity, availableQuantity: newAvailable >= 0 ? newAvailable : 0 
       }).eq('id', id);
-      refreshData();
+
+      if (error) {
+          console.error('Error updating inventory item:', error);
+          alert(`Erro ao atualizar item: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const deleteInventoryItem = async (id: string) => {
-      await supabase.from('inventory').delete().eq('id', id);
-      refreshData();
+      const { error } = await supabase.from('inventory').delete().eq('id', id);
+      if (error) {
+          console.error('Error deleting inventory item:', error);
+          alert(`Erro ao excluir item: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
 
   // LOANS
@@ -248,15 +299,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if(!item || item.availableQuantity <= 0) return false;
 
       // 1. Update Inventory
-      await supabase.from('inventory').update({ availableQuantity: item.availableQuantity - 1 }).eq('id', itemId);
+      const { error: invError } = await supabase.from('inventory').update({ availableQuantity: item.availableQuantity - 1 }).eq('id', itemId);
+      
+      if (invError) {
+          alert('Erro ao atualizar estoque.');
+          return false;
+      }
       
       // 2. Create Loan
       const { error } = await supabase.from('loans').insert({
           userId, itemName: item.name, quantity: 1, requestDate: new Date().toISOString(), status: 'ACTIVE'
       });
       
-      if (!error) refreshData();
-      return !error;
+      if (error) {
+          alert(`Erro ao criar empréstimo: ${error.message}`);
+          // Idealmente faríamos um rollback aqui, mas um refreshData tenta sincronizar
+          refreshData();
+          return false;
+      }
+      
+      refreshData();
+      return true;
   };
 
   const returnLoan = async (loanId: string) => {
@@ -266,7 +329,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const item = inventory.find(i => i.name === loan.itemName);
 
       // 1. Update Loan
-      await supabase.from('loans').update({ status: 'RETURNED', returnDate: new Date().toISOString() }).eq('id', loanId);
+      const { error: loanError } = await supabase.from('loans').update({ status: 'RETURNED', returnDate: new Date().toISOString() }).eq('id', loanId);
+
+      if (loanError) {
+          alert(`Erro ao devolver: ${loanError.message}`);
+          return;
+      }
 
       // 2. Return Stock
       if(item) {
@@ -277,58 +345,119 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // PAYMENTS
   const addPayment = async (data: Omit<Payment, 'id'>) => {
-      await supabase.from('payments').insert({ ...data, status: 'PENDING' });
-      refreshData();
+      const { error } = await supabase.from('payments').insert({ ...data, status: 'PENDING' });
+      if (error) {
+          console.error('Error adding payment:', error);
+          alert(`Erro ao adicionar pagamento: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const updatePayment = async (data: Payment) => {
-      await supabase.from('payments').update(data).eq('id', data.id);
-      refreshData();
+      const { error } = await supabase.from('payments').update(data).eq('id', data.id);
+      if (error) {
+          console.error('Error updating payment:', error);
+          alert(`Erro ao atualizar pagamento: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const deletePayment = async (id: string) => {
-      await supabase.from('payments').delete().eq('id', id);
-      refreshData();
+      const { error } = await supabase.from('payments').delete().eq('id', id);
+      if (error) {
+          console.error('Error deleting payment:', error);
+          alert(`Erro ao excluir pagamento: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const confirmPayment = async (id: string, date?: string) => {
-      await supabase.from('payments').update({ 
+      const { error } = await supabase.from('payments').update({ 
           status: 'PAID', paidDate: date || new Date().toISOString().split('T')[0] 
       }).eq('id', id);
-      refreshData();
+      
+      if (error) {
+          console.error('Error confirming payment:', error);
+          alert(`Erro ao confirmar pagamento: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
 
   // EVENTS & REGISTRATIONS
   const addEvent = async (data: Omit<ClinicEvent, 'id'>) => {
-      await supabase.from('events').insert(data);
-      refreshData();
+      const { error } = await supabase.from('events').insert(data);
+      if (error) {
+          console.error('Error adding event:', error);
+          alert(`Erro ao adicionar evento: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const updateEvent = async (data: ClinicEvent) => {
-      await supabase.from('events').update(data).eq('id', data.id);
-      refreshData();
+      const { error } = await supabase.from('events').update(data).eq('id', data.id);
+      if (error) {
+          console.error('Error updating event:', error);
+          alert(`Erro ao atualizar evento: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const deleteEvent = async (id: string) => {
-      await supabase.from('events').delete().eq('id', id);
-      refreshData();
+      const { error } = await supabase.from('events').delete().eq('id', id);
+      if (error) {
+          console.error('Error deleting event:', error);
+          alert(`Erro ao excluir evento: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const addRegistration = async (data: Omit<EventRegistration, 'id'>) => {
-      await supabase.from('registrations').insert(data);
-      refreshData();
+      const { error } = await supabase.from('registrations').insert(data);
+      if (error) {
+          console.error('Error adding registration:', error);
+          alert(`Erro ao realizar inscrição: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const updateRegistration = async (data: EventRegistration) => {
-      await supabase.from('registrations').update(data).eq('id', data.id);
-      refreshData();
+      const { error } = await supabase.from('registrations').update(data).eq('id', data.id);
+      if (error) {
+          console.error('Error updating registration:', error);
+          alert(`Erro ao atualizar inscrição: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
 
   // PATIENTS
   const addPatient = async (data: Omit<Patient, 'id'>) => {
-      await supabase.from('patients').insert(data);
-      refreshData();
+      const { error } = await supabase.from('patients').insert(data);
+      if (error) {
+          console.error('Error adding patient:', error);
+          alert(`Erro ao adicionar paciente: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const updatePatient = async (data: Patient) => {
-      await supabase.from('patients').update(data).eq('id', data.id);
-      refreshData();
+      const { error } = await supabase.from('patients').update(data).eq('id', data.id);
+      if (error) {
+          console.error('Error updating patient:', error);
+          alert(`Erro ao atualizar paciente: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
   const deletePatient = async (id: string) => {
-      await supabase.from('patients').delete().eq('id', id);
-      refreshData();
+      const { error } = await supabase.from('patients').delete().eq('id', id);
+      if (error) {
+          console.error('Error deleting patient:', error);
+          alert(`Erro ao excluir paciente: ${error.message}`);
+      } else {
+          refreshData();
+      }
   };
 
   return (
