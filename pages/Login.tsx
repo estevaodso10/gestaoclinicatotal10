@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient';
 import { Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
 
 const Login: React.FC = () => {
-  const { currentUser } = useApp();
+  const { currentUser, refreshData } = useApp();
   const navigate = useNavigate();
   
   const [email, setEmail] = useState('');
@@ -37,6 +37,22 @@ const Login: React.FC = () => {
                 throw new Error('E-mail ou senha incorretos.');
             }
             throw signInError;
+        }
+
+        // --- CORREÇÃO DE SEGURANÇA / AUTO-FIX ---
+        // Se for o admin principal, força a role para ADMIN no banco de dados
+        // Isso corrige casos onde o admin foi criado acidentalmente como PROFESSIONAL
+        if (email === 'admin@clinic.com') {
+            await supabase.from('users').update({ role: Role.ADMIN }).eq('email', email);
+            // Força atualização dos dados no contexto para refletir a mudança imediatamente
+            refreshData(); 
+            
+            // Pequeno hack para forçar o recarregamento da página se necessário, 
+            // garantindo que o AppContext pegue a nova Role
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+            return;
         }
         
         // Navigation happens in useEffect when currentUser is detected via Auth State Listener in AppContext
