@@ -177,15 +177,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // USERS
   const addUser = async (userData: Omit<User, 'id'>) => {
-      // Gera um UUID no frontend pois o banco não está gerando automaticamente
-      const newId = crypto.randomUUID();
-      const { error } = await supabase.from('users').insert({ ...userData, id: newId });
-      
-      if (error) {
-          console.error('Error adding user:', error);
-          alert(`Erro ao adicionar usuário: ${error.message}`);
-      } else {
-          refreshData();
+      try {
+        // Simple fallback for UUID if crypto is not available
+        const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) 
+            ? crypto.randomUUID() 
+            : `user-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+
+        const { error } = await supabase.from('users').insert({ ...userData, id: newId });
+        
+        if (error) {
+            console.error('Error adding user:', error);
+            // Handle cases where error might be an object that doesn't stringify well in alert
+            const msg = error.message || JSON.stringify(error);
+            alert(`Erro ao adicionar usuário: ${msg}`);
+        } else {
+            refreshData();
+        }
+      } catch (err: any) {
+          console.error('Unexpected error in addUser:', err);
+          alert(`Erro inesperado ao adicionar usuário: ${err.message || err}`);
       }
   };
   const updateUser = async (user: User) => {
