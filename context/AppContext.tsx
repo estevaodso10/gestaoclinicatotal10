@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Room, Allocation, Loan, Payment, Patient, InventoryItem, ClinicEvent, Role, EventRegistration } from '../types';
 import { supabase } from '../supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 
 interface AppContextType {
   currentUser: User | null;
@@ -59,6 +60,10 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+// Credenciais hardcoded para criação de cliente temporário (mesmas do supabaseClient.ts)
+const SUPABASE_URL = 'https://dqqcozscupcrsafwlkvh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxcWNvenNjdXBjcnNhZndsa3ZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MzY1NjMsImV4cCI6MjA4MTMxMjU2M30.Y67DFz-8RDbYszmq4rMRQe8FTVA5qT3rt6SNSKtuGpM';
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -178,24 +183,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // USERS
   const addUser = async (userData: Omit<User, 'id'>) => {
       try {
-        // Simple fallback for UUID if crypto is not available
-        const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) 
-            ? crypto.randomUUID() 
-            : `user-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+        // 1. Instanciar um cliente Supabase "Limpo" (sem sessão) para criar o usuário Auth
+        // isso evita que o Admin atual seja desconectado ao usar signUp
+        const tempClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const { error } = await supabase.from('users').insert({ ...userData, id: newId });
-        
-        if (error) {
-            console.error('Error adding user:', error);
-            // Handle cases where error might be an object that doesn't stringify well in alert
-            const msg = error.message || JSON.stringify(error);
-            alert(`Erro ao adicionar usuário: ${msg}`);
-        } else {
-            refreshData();
+        // 2. Gerar uma senha temporária
+        const tempPassword = "Mudar123@" + Math.floor(Math.random() * 1000);
+
+        // 3. Criar usuário no Auth do Supabase
+        const { data: authData, error: authError } = await tempClient.auth.signUp({
+            email: userData.email,
+            password: tempPassword,
+        });
+
+        if (authError) {
+             throw new Error(`Erro na Autenticação: ${authError.message}`);
         }
+
+        if (!authData.user) {
+            throw new Error("Usuário criado, mas ID não retornado.");
+        }
+
+        // 4. Usar o ID oficial do Auth para inserir na tabela pública
+        // Isso satisfaz a foreign key constraint "users_id_fkey"
+        const { error: dbError } = await supabase.from('users').insert({ 
+            ...userData, 
+            id: authData.user.id 
+        });
+        
+        if (dbError) {
+            // Se der erro de duplicidade no DB, talvez um trigger já tenha criado o usuário.
+            // Nesse caso, tentamos atualizar.
+            if (dbError.code === '23505') { // Código Postgres para Unique Violation
+                await supabase.from('users').update(userData).eq('id', authData.user.id);
+            } else {
+                throw new Error(`Erro no Banco de Dados: ${dbError.message}`);
+            }
+        }
+        
+        alert(`Usuário criado com sucesso!\n\nSenha Temporária: ${tempPassword}\n\nPor favor, informe esta senha ao usuário.`);
+        refreshData();
+
       } catch (err: any) {
-          console.error('Unexpected error in addUser:', err);
-          alert(`Erro inesperado ao adicionar usuário: ${err.message || err}`);
+          console.error('Erro ao adicionar usuário:', err);
+          alert(`Falha no cadastro: ${err.message || err}`);
       }
   };
   const updateUser = async (user: User) => {
