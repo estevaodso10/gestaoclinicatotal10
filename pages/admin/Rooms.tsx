@@ -17,6 +17,9 @@ const RoomsPage: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [roomToDelete, setRoomToDelete] = useState<Room | null>(null);
 
+  // Ordenar as salas alfabeticamente pelo nome antes de exibir
+  const sortedRooms = [...rooms].sort((a, b) => a.name.localeCompare(b.name));
+
   // --- Handlers for Create/Edit ---
   const openModal = (room?: Room) => {
     if (room) {
@@ -66,7 +69,7 @@ const RoomsPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {rooms.map((room) => (
+        {sortedRooms.map((room) => (
           <div key={room.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between hover:shadow-md transition">
             <div>
               <div className="flex items-center space-x-3 mb-3">
