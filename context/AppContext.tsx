@@ -177,10 +177,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // USERS
   const addUser = async (userData: Omit<User, 'id'>) => {
-      // Gera um UUID no frontend pois o banco não está gerando automaticamente
-      const newId = crypto.randomUUID();
-      const { error } = await supabase.from('users').insert({ ...userData, id: newId });
-      
+      const { error } = await supabase.from('users').insert(userData);
       if (error) {
           console.error('Error adding user:', error);
           alert(`Erro ao adicionar usuário: ${error.message}`);
