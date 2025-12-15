@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { User, Role } from '../../types';
-import { UserCircle, Mail, Phone, MapPin, Save, Briefcase, Lock, Camera } from 'lucide-react';
+import { UserCircle, Mail, Phone, MapPin, Save, Briefcase, Lock, Camera, Loader2 } from 'lucide-react';
 
 const ProfessionalDashboard: React.FC = () => {
   const { currentUser, updateUser } = useApp();
   const [formData, setFormData] = useState<Partial<User>>({});
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -34,9 +35,12 @@ const ProfessionalDashboard: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
+
+    setIsLoading(true);
+    setMessage(null);
 
     try {
         // Create updated user object
@@ -47,13 +51,16 @@ const ProfessionalDashboard: React.FC = () => {
             role: currentUser.role 
         } as User;
 
-        updateUser(updatedUser);
+        await updateUser(updatedUser);
         setMessage({ type: 'success', text: 'Dados atualizados com sucesso!' });
         
         // Clear message after 3 seconds
         setTimeout(() => setMessage(null), 3000);
-    } catch (error) {
-        setMessage({ type: 'error', text: 'Erro ao atualizar dados.' });
+    } catch (error: any) {
+        console.error(error);
+        setMessage({ type: 'error', text: `Erro ao atualizar dados: ${error.message || 'Tente novamente.'}` });
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -181,9 +188,11 @@ const ProfessionalDashboard: React.FC = () => {
                 <div className="pt-6 border-t border-gray-100 flex justify-end">
                     <button 
                         type="submit" 
-                        className="bg-secondary hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg shadow-sm transition flex items-center font-medium"
+                        disabled={isLoading}
+                        className="bg-secondary hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg shadow-sm transition flex items-center font-medium disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                        <Save size={18} className="mr-2" /> Salvar Alterações
+                        {isLoading ? <Loader2 className="animate-spin mr-2" size={18} /> : <Save size={18} className="mr-2" />}
+                        {isLoading ? 'Salvando...' : 'Salvar Alterações'}
                     </button>
                 </div>
             </form>

@@ -24,7 +24,7 @@ interface AppContextType {
   
   // Admin Actions
   addUser: (user: Omit<User, 'id'>) => void;
-  updateUser: (user: User) => void;
+  updateUser: (user: User) => Promise<void>; // Alterado para Promise
   toggleUserStatus: (id: string) => void;
   
   addRoom: (room: Omit<Room, 'id'>) => void;
@@ -174,7 +174,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // --- CRUD WRAPPERS ---
   
   const updateSystemSettings = async (name: string, logo: string | null) => {
-      // Create payload. Assuming ID 1 is the default row as per SQL setup.
       const payload: any = { id: 1, system_name: name };
       if (logo !== undefined) payload.system_logo = logo;
 
@@ -184,48 +183,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           console.error('Erro ao salvar configurações:', error);
           alert('Erro ao salvar configurações do sistema.');
       } else {
-          // Optimistic update locally
           setSystemName(name);
           if (logo !== undefined) setSystemLogo(logo);
-          refreshData(); // Ensure consistency
+          refreshData();
       }
   };
 
   // USERS
   const addUser = async (userData: Omit<User, 'id'>) => {
       try {
-        // 1. Instanciar um cliente Supabase "Limpo" (sem sessão) para criar o usuário Auth
-        // isso evita que o Admin atual seja desconectado ao usar signUp
         const tempClient = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        // 2. Gerar uma senha temporária
         const tempPassword = "Mudar123@" + Math.floor(Math.random() * 1000);
 
-        // 3. Criar usuário no Auth do Supabase
         const { data: authData, error: authError } = await tempClient.auth.signUp({
             email: userData.email,
             password: tempPassword,
         });
 
-        if (authError) {
-             throw new Error(`Erro na Autenticação: ${authError.message}`);
-        }
+        if (authError) throw new Error(`Erro na Autenticação: ${authError.message}`);
+        if (!authData.user) throw new Error("Usuário criado, mas ID não retornado.");
 
-        if (!authData.user) {
-            throw new Error("Usuário criado, mas ID não retornado.");
-        }
-
-        // 4. Usar o ID oficial do Auth para inserir na tabela pública
-        // Isso satisfaz a foreign key constraint "users_id_fkey"
         const { error: dbError } = await supabase.from('users').insert({ 
             ...userData, 
             id: authData.user.id 
         });
         
         if (dbError) {
-            // Se der erro de duplicidade no DB, talvez um trigger já tenha criado o usuário.
-            // Nesse caso, tentamos atualizar.
-            if (dbError.code === '23505') { // Código Postgres para Unique Violation
+            if (dbError.code === '23505') { 
                 await supabase.from('users').update(userData).eq('id', authData.user.id);
             } else {
                 throw new Error(`Erro no Banco de Dados: ${dbError.message}`);
@@ -240,15 +224,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           alert(`Falha no cadastro: ${err.message || err}`);
       }
   };
+
   const updateUser = async (user: User) => {
+      // Retorna a promessa e lança erro para ser tratado pelo componente
       const { error } = await supabase.from('users').update(user).eq('id', user.id);
+      
       if (error) {
           console.error('Error updating user:', error);
-          alert(`Erro ao atualizar usuário: ${error.message}`);
+          throw error;
       } else {
+          // Atualiza estado global imediatamente para refletir na UI (ex: Header)
+          if (currentUser && currentUser.id === user.id) {
+              setCurrentUser({ ...currentUser, ...user });
+          }
           refreshData();
       }
   };
+
   const toggleUserStatus = async (id: string) => {
       const user = users.find(u => u.id === id);
       if(!user) return;
@@ -263,7 +255,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // ROOMS
   const addRoom = async (data: Omit<Room, 'id'>) => {
-      // Gera ID manualmente
       const newId = generateUUID();
       const { error } = await supabase.from('rooms').insert({ ...data, id: newId });
       if (error) {
@@ -283,10 +274,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
   const deleteRoom = async (id: string) => {
-      // 1. Remover alocações dependentes primeiro (Simulando CASCADE)
       await supabase.from('allocations').delete().eq('roomId', id);
-
-      // 2. Remover a sala
       const { error } = await supabase.from('rooms').delete().eq('id', id);
       if (error) {
           console.error('Error deleting room:', error);
@@ -298,7 +286,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // ALLOCATIONS
   const addAllocation = async (data: Omit<Allocation, 'id'>) => {
-      // Conflict Check
       const conflict = allocations.find(a => 
         a.roomId === data.roomId && a.day === data.day && a.shift === data.shift
       );
@@ -361,7 +348,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const item = inventory.find(i => i.id === itemId);
       if(!item || item.availableQuantity <= 0) return false;
 
-      // 1. Update Inventory
       const { error: invError } = await supabase.from('inventory').update({ availableQuantity: item.availableQuantity - 1 }).eq('id', itemId);
       
       if (invError) {
@@ -369,7 +355,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return false;
       }
       
-      // 2. Create Loan
       const newId = generateUUID();
       const { error } = await supabase.from('loans').insert({
           id: newId, userId, itemName: item.name, quantity: 1, requestDate: new Date().toISOString(), status: 'ACTIVE'
@@ -377,7 +362,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       if (error) {
           alert(`Erro ao criar empréstimo: ${error.message}`);
-          // Idealmente faríamos um rollback aqui, mas um refreshData tenta sincronizar
           refreshData();
           return false;
       }
@@ -389,10 +373,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const returnLoan = async (loanId: string) => {
       const loan = loans.find(l => l.id === loanId);
       if(!loan) return;
-      
       const item = inventory.find(i => i.name === loan.itemName);
 
-      // 1. Update Loan
       const { error: loanError } = await supabase.from('loans').update({ status: 'RETURNED', returnDate: new Date().toISOString() }).eq('id', loanId);
 
       if (loanError) {
@@ -400,7 +382,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return;
       }
 
-      // 2. Return Stock
       if(item) {
           await supabase.from('inventory').update({ availableQuantity: item.availableQuantity + loan.quantity }).eq('id', item.id);
       }
@@ -470,9 +451,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
   const deleteEvent = async (id: string) => {
-      // 1. Remover inscrições dependentes (Cascade Manual)
       await supabase.from('registrations').delete().eq('eventId', id);
-
       const { error } = await supabase.from('events').delete().eq('id', id);
       if (error) {
           console.error('Error deleting event:', error);
