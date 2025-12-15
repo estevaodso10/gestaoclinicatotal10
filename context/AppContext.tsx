@@ -16,9 +16,9 @@ interface AppContextType {
   
   systemName: string;
   systemLogo: string | null;
-  updateSystemSettings: (name: string, logo: string | null) => void;
+  updateSystemSettings: (name: string, logo: string | null) => Promise<void>;
 
-  login: (email: string) => Promise<void>; // Updated signature is handled inside auth flow actually
+  login: (email: string) => Promise<void>; 
   logout: () => void;
   
   // Admin Actions
@@ -48,14 +48,14 @@ interface AppContextType {
   addRegistration: (reg: Omit<EventRegistration, 'id'>) => void;
   updateRegistration: (reg: EventRegistration) => void;
 
-  requestLoan: (userId: string, itemId: string) => boolean;
+  requestLoan: (userId: string, itemId: string) => Promise<boolean>;
   returnLoan: (loanId: string) => void;
   
   addPatient: (patient: Omit<Patient, 'id'>) => void;
   updatePatient: (patient: Patient) => void;
   deletePatient: (id: string) => void;
 
-  refreshData: () => void; // Helper to force refresh
+  refreshData: () => void; 
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -82,7 +82,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Parallel fetching for performance
       const [
           usersRes, roomsRes, allocRes, invRes, loansRes, 
-          payRes, patRes, eventsRes, regRes
+          payRes, patRes, eventsRes, regRes, settingsRes
       ] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('rooms').select('*'),
@@ -92,7 +92,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           supabase.from('payments').select('*'),
           supabase.from('patients').select('*'),
           supabase.from('events').select('*'),
-          supabase.from('registrations').select('*')
+          supabase.from('registrations').select('*'),
+          supabase.from('system_settings').select('*').single()
       ]);
 
       if(usersRes.data) setUsers(usersRes.data);
@@ -104,6 +105,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if(patRes.data) setPatients(patRes.data);
       if(eventsRes.data) setEvents(eventsRes.data);
       if(regRes.data) setRegistrations(regRes.data);
+      
+      // Load System Settings
+      if(settingsRes.data) {
+          setSystemName(settingsRes.data.system_name || 'ClinicFlow');
+          setSystemLogo(settingsRes.data.system_logo || null);
+      }
   };
 
   useEffect(() => {
@@ -139,8 +146,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshData = () => fetchData();
 
   // --- AUTH ACTIONS ---
-  // Note: The actual login logic is in the Login page using supabase.auth.signInWithPassword
-  // This placeholder is kept for compatibility if needed, but not used directly for auth logic anymore
   const login = async (email: string) => { 
       // Handled by Supabase Auth UI
   };
@@ -152,10 +157,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // --- CRUD WRAPPERS ---
   
-  const updateSystemSettings = (name: string, logo: string | null) => {
-      setSystemName(name);
-      if (logo !== undefined) setSystemLogo(logo);
-      // In a real app, you'd save this to a 'settings' table
+  const updateSystemSettings = async (name: string, logo: string | null) => {
+      // Create payload. Assuming ID 1 is the default row as per SQL setup.
+      const payload: any = { id: 1, system_name: name };
+      if (logo !== undefined) payload.system_logo = logo;
+
+      const { error } = await supabase.from('system_settings').upsert(payload);
+      
+      if (error) {
+          console.error('Erro ao salvar configurações:', error);
+          alert('Erro ao salvar configurações do sistema.');
+      } else {
+          // Optimistic update locally
+          setSystemName(name);
+          if (logo !== undefined) setSystemLogo(logo);
+          refreshData(); // Ensure consistency
+      }
   };
 
   // USERS
@@ -172,7 +189,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if(!user) return;
       await supabase.from('users').update({ isActive: !user.isActive }).eq('id', id);
       refreshData();
-      // Note: Backend triggers are better for cascading deletes/returns on deactivation
   };
 
   // ROOMS
@@ -213,8 +229,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       refreshData();
   };
   const updateInventoryItem = async (id: string, name: string, totalQuantity: number) => {
-      // Simple update, logic for availability calculation should ideally be server-side or carefully managed
-      // Recalculating availability based on current loans
       const currentLoansCount = loans.filter(l => l.itemName === name && l.status === 'ACTIVE').reduce((acc, l) => acc + l.quantity, 0);
       const newAvailable = totalQuantity - currentLoansCount;
       
@@ -229,7 +243,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // LOANS
-  const requestLoan = async (userId: string, itemId: string) => { // Returns promise in real impl, boolean here for compatibility
+  const requestLoan = async (userId: string, itemId: string) => {
       const item = inventory.find(i => i.id === itemId);
       if(!item || item.availableQuantity <= 0) return false;
 
@@ -237,11 +251,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await supabase.from('inventory').update({ availableQuantity: item.availableQuantity - 1 }).eq('id', itemId);
       
       // 2. Create Loan
-      await supabase.from('loans').insert({
+      const { error } = await supabase.from('loans').insert({
           userId, itemName: item.name, quantity: 1, requestDate: new Date().toISOString(), status: 'ACTIVE'
       });
-      refreshData();
-      return true;
+      
+      if (!error) refreshData();
+      return !error;
   };
 
   const returnLoan = async (loanId: string) => {
