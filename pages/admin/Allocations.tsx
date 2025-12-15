@@ -25,18 +25,28 @@ const AllocationsPage: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [allocToDelete, setAllocToDelete] = useState<Allocation | null>(null);
 
-  const handleAdd = (e: React.FormEvent) => {
+  // --- Sorting Lists for Dropdowns ---
+  const sortedRooms = [...rooms].sort((a, b) => a.name.localeCompare(b.name));
+  
+  const sortedProfessionals = users
+    .filter(u => u.role === Role.PROFESSIONAL && u.isActive)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if(!newAlloc.roomId || !newAlloc.userId) {
         setErrorMsg('Por favor selecione a sala e o profissional.');
         return;
     }
-    const result = addAllocation(newAlloc as Omit<Allocation, 'id'>);
+    
+    // CORREÇÃO: Adicionado await para esperar a resposta do Supabase
+    const result = await addAllocation(newAlloc as Omit<Allocation, 'id'>);
+    
     if (!result.success) {
       setErrorMsg(result.message);
     } else {
       setErrorMsg('');
-      // Reset logic optional - keeping form filled for quick consecutive entries
+      // Opcional: Limpar formulário ou manter para cadastros sequenciais
     }
   };
 
@@ -90,7 +100,7 @@ const AllocationsPage: React.FC = () => {
              <select className="w-full border rounded-md p-2 text-sm" 
                value={newAlloc.roomId} onChange={e => setNewAlloc({...newAlloc, roomId: e.target.value})}>
                <option value="">Selecione a Sala</option>
-               {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+               {sortedRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
              </select>
            </div>
            <div>
@@ -112,7 +122,7 @@ const AllocationsPage: React.FC = () => {
              <select className="w-full border rounded-md p-2 text-sm" 
                value={newAlloc.userId} onChange={e => setNewAlloc({...newAlloc, userId: e.target.value})}>
                <option value="">Selecione o Profissional</option>
-               {users.filter(u => u.role === Role.PROFESSIONAL && u.isActive).map(u => (
+               {sortedProfessionals.map(u => (
                  <option key={u.id} value={u.id}>{u.name} ({u.specialty})</option>
                ))}
              </select>
@@ -136,7 +146,7 @@ const AllocationsPage: React.FC = () => {
                 onChange={(e) => setFilterRoom(e.target.value)}
             >
                 <option value="">Todas as Salas</option>
-                {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                {sortedRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
 
             <select 
@@ -154,7 +164,7 @@ const AllocationsPage: React.FC = () => {
                 onChange={(e) => setFilterProfessional(e.target.value)}
             >
                 <option value="">Todos os Profissionais</option>
-                {users.filter(u => u.role === Role.PROFESSIONAL && u.isActive).map(u => (
+                {sortedProfessionals.map(u => (
                  <option key={u.id} value={u.id}>{u.name}</option>
                ))}
             </select>
