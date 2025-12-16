@@ -127,19 +127,6 @@ const UsersPage: React.FC = () => {
           <div className="bg-white p-6 rounded-lg w-full max-w-lg">
             <h3 className="text-xl font-bold mb-4">{editingUser ? 'Editar Usuário' : 'Novo Usuário'}</h3>
             
-            {!editingUser && (
-                <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 flex items-start">
-                    <Info className="shrink-0 mr-2 mt-0.5" size={16} />
-                    <div>
-                        <p className="font-semibold mb-1">Atenção ao Fluxo de Cadastro:</p>
-                        <p className="leading-relaxed">
-                            Este formulário cria apenas o <strong>Perfil do Usuário</strong> no sistema. 
-                            Para que ele consiga fazer login, você deve criar manualmente o <strong>Login (E-mail/Senha)</strong> no painel Authentication do Supabase.
-                        </p>
-                    </div>
-                </div>
-            )}
-
             <form onSubmit={handleSubmit} className="space-y-4">
               
               {/* Photo Upload Section */}
@@ -179,7 +166,7 @@ const UsersPage: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700">E-mail</label>
                 <input required type="email" className="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-secondary focus:outline-none" 
                   value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                {!editingUser && <p className="text-xs text-gray-500 mt-1">Deve ser idêntico ao e-mail cadastrado no Supabase Auth.</p>}
+                {!editingUser && <p className="text-xs text-gray-500 mt-1">Será criada uma senha temporária automática.</p>}
               </div>
               <div className="grid grid-cols-2 gap-4">
                  <div>
