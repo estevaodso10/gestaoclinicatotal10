@@ -5,7 +5,7 @@ import { DAYS_OF_WEEK, SHIFTS } from '../../constants';
 import { 
     Search, UserCircle, Calendar, CreditCard, 
     CheckCircle, Clock, DollarSign, ChevronRight, X, 
-    Edit, Trash2, AlertTriangle, Save, Filter
+    Edit, Trash2, AlertTriangle, Save, Filter, Loader2
 } from 'lucide-react';
 
 const PaymentsPage: React.FC = () => {
@@ -18,18 +18,22 @@ const PaymentsPage: React.FC = () => {
   // State for new payment form
   const [newPaymentAmount, setNewPaymentAmount] = useState('');
   const [newPaymentDueDate, setNewPaymentDueDate] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
 
   // State for confirming payment
   const [confirmingPaymentId, setConfirmingPaymentId] = useState<string | null>(null);
   const [paymentDateInput, setPaymentDateInput] = useState(new Date().toISOString().split('T')[0]);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // State for Editing
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // State for Deleting
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Helper to calculate stats (Moved up to be used in filtering)
   const getPaymentStats = (userId: string) => {
@@ -57,24 +61,37 @@ const PaymentsPage: React.FC = () => {
     return true;
   });
 
-  const handleCreateCharge = (e: React.FormEvent) => {
+  const handleCreateCharge = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser || !newPaymentAmount || !newPaymentDueDate) return;
 
-    addPayment({
-        userId: selectedUser.id,
-        amount: parseFloat(newPaymentAmount),
-        dueDate: newPaymentDueDate
-    });
-
-    setNewPaymentAmount('');
-    setNewPaymentDueDate('');
+    setIsAdding(true);
+    try {
+        await addPayment({
+            userId: selectedUser.id,
+            amount: parseFloat(newPaymentAmount),
+            dueDate: newPaymentDueDate
+        });
+        setNewPaymentAmount('');
+        setNewPaymentDueDate('');
+    } catch (error: any) {
+        alert('Erro ao criar cobrança: ' + error.message);
+    } finally {
+        setIsAdding(false);
+    }
   };
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     if (confirmingPaymentId && paymentDateInput) {
-        confirmPayment(confirmingPaymentId, paymentDateInput);
-        setConfirmingPaymentId(null);
+        setIsConfirming(true);
+        try {
+            await confirmPayment(confirmingPaymentId, paymentDateInput);
+            setConfirmingPaymentId(null);
+        } catch (error: any) {
+            alert('Erro ao confirmar pagamento: ' + error.message);
+        } finally {
+            setIsConfirming(false);
+        }
     }
   };
 
@@ -85,17 +102,27 @@ const PaymentsPage: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleUpdatePayment = (e: React.FormEvent) => {
+  const handleUpdatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingPayment) {
-        // If status changed to PENDING, remove paidDate
-        const payload = { ...editingPayment };
-        if (payload.status === 'PENDING') {
-            payload.paidDate = undefined;
+        setIsSaving(true);
+        try {
+            const payload = { ...editingPayment };
+            
+            // Critical fix: If status is changed to PENDING, send NULL to clear paidDate in DB
+            if (payload.status === 'PENDING') {
+                (payload as any).paidDate = null;
+            }
+
+            await updatePayment(payload);
+            setIsEditModalOpen(false);
+            setEditingPayment(null);
+            alert('Pagamento atualizado com sucesso!');
+        } catch (error: any) {
+             alert('Erro ao atualizar: ' + error.message);
+        } finally {
+             setIsSaving(false);
         }
-        updatePayment(payload);
-        setIsEditModalOpen(false);
-        setEditingPayment(null);
     }
   };
 
@@ -104,11 +131,18 @@ const PaymentsPage: React.FC = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (paymentToDelete) {
-        deletePayment(paymentToDelete.id);
-        setIsDeleteModalOpen(false);
-        setPaymentToDelete(null);
+        setIsDeleting(true);
+        try {
+            await deletePayment(paymentToDelete.id);
+            setIsDeleteModalOpen(false);
+            setPaymentToDelete(null);
+        } catch (error: any) {
+            alert('Erro ao excluir: ' + error.message);
+        } finally {
+            setIsDeleting(false);
+        }
     }
   };
 
@@ -294,8 +328,8 @@ const PaymentsPage: React.FC = () => {
                                         onChange={e => setNewPaymentDueDate(e.target.value)}
                                     />
                                 </div>
-                                <button type="submit" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition">
-                                    Gerar Cobrança
+                                <button type="submit" disabled={isAdding} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition flex items-center justify-center">
+                                    {isAdding ? <Loader2 className="animate-spin" size={16} /> : 'Gerar Cobrança'}
                                 </button>
                             </form>
                         </section>
@@ -341,7 +375,9 @@ const PaymentsPage: React.FC = () => {
                                                                         value={paymentDateInput}
                                                                         onChange={e => setPaymentDateInput(e.target.value)}
                                                                     />
-                                                                    <button onClick={handleConfirmPayment} className="text-green-600 hover:text-green-900 text-xs font-bold">OK</button>
+                                                                    <button onClick={handleConfirmPayment} disabled={isConfirming} className="text-green-600 hover:text-green-900 text-xs font-bold">
+                                                                        {isConfirming ? '...' : 'OK'}
+                                                                    </button>
                                                                     <button onClick={() => setConfirmingPaymentId(null)} className="text-gray-400 hover:text-gray-600">
                                                                         <X size={14}/>
                                                                     </button>
@@ -453,8 +489,8 @@ const PaymentsPage: React.FC = () => {
                                     )}
                                     <div className="flex justify-end space-x-2 pt-4">
                                         <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 border rounded text-gray-600 hover:bg-gray-50">Cancelar</button>
-                                        <button type="submit" className="px-4 py-2 bg-secondary text-white rounded hover:bg-blue-600 flex items-center">
-                                            <Save size={16} className="mr-2"/> Salvar
+                                        <button type="submit" disabled={isSaving} className="px-4 py-2 bg-secondary text-white rounded hover:bg-blue-600 flex items-center">
+                                            {isSaving ? <Loader2 className="animate-spin mr-2" size={16}/> : <Save size={16} className="mr-2"/>} Salvar
                                         </button>
                                     </div>
                                 </form>
@@ -479,8 +515,8 @@ const PaymentsPage: React.FC = () => {
                                 </div>
                                 <div className="flex justify-end space-x-2 mt-6">
                                     <button onClick={() => setIsDeleteModalOpen(false)} className="px-3 py-2 border rounded text-gray-600 hover:bg-gray-50 text-sm">Cancelar</button>
-                                    <button onClick={handleConfirmDelete} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm flex items-center">
-                                        <Trash2 size={16} className="mr-1"/> Confirmar
+                                    <button onClick={handleConfirmDelete} disabled={isDeleting} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm flex items-center">
+                                        {isDeleting ? <Loader2 className="animate-spin mr-1" size={16} /> : <Trash2 size={16} className="mr-1"/>} Confirmar
                                     </button>
                                 </div>
                             </div>

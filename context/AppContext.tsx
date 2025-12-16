@@ -24,7 +24,7 @@ interface AppContextType {
   
   // Admin Actions
   addUser: (user: Omit<User, 'id'>) => void;
-  updateUser: (user: User) => Promise<void>; // Alterado para Promise
+  updateUser: (user: User) => Promise<void>; 
   toggleUserStatus: (id: string) => void;
   
   addRoom: (room: Omit<Room, 'id'>) => void;
@@ -34,10 +34,10 @@ interface AppContextType {
   addAllocation: (allocation: Omit<Allocation, 'id'>) => Promise<{ success: boolean; message: string }>;
   deleteAllocation: (id: string) => void;
   
-  addPayment: (payment: Omit<Payment, 'id'>) => void;
-  updatePayment: (payment: Payment) => void;
-  deletePayment: (id: string) => void;
-  confirmPayment: (id: string, date?: string) => void;
+  addPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
+  updatePayment: (payment: Payment) => Promise<void>;
+  deletePayment: (id: string) => Promise<void>;
+  confirmPayment: (id: string, date?: string) => Promise<void>;
   
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'availableQuantity'>) => void;
   updateInventoryItem: (id: string, name: string, totalQuantity: number) => void;
@@ -226,18 +226,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateUser = async (user: User) => {
-      // Retorna a promessa e lança erro para ser tratado pelo componente
       const { error } = await supabase.from('users').update(user).eq('id', user.id);
       
       if (error) {
           console.error('Error updating user:', error);
           throw error;
       } else {
-          // Atualiza estado global imediatamente para refletir na UI (ex: Header)
           if (currentUser && currentUser.id === user.id) {
               setCurrentUser({ ...currentUser, ...user });
           }
-          refreshData();
+          await refreshData();
       }
   };
 
@@ -394,29 +392,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const { error } = await supabase.from('payments').insert({ ...data, id: newId, status: 'PENDING' });
       if (error) {
           console.error('Error adding payment:', error);
-          alert(`Erro ao adicionar pagamento: ${error.message}`);
+          throw error;
       } else {
-          refreshData();
+          await refreshData();
       }
   };
+
   const updatePayment = async (data: Payment) => {
       const { error } = await supabase.from('payments').update(data).eq('id', data.id);
       if (error) {
           console.error('Error updating payment:', error);
-          alert(`Erro ao atualizar pagamento: ${error.message}`);
+          throw error;
       } else {
-          refreshData();
+          await refreshData();
       }
   };
+
   const deletePayment = async (id: string) => {
       const { error } = await supabase.from('payments').delete().eq('id', id);
       if (error) {
           console.error('Error deleting payment:', error);
-          alert(`Erro ao excluir pagamento: ${error.message}`);
+          throw error;
       } else {
-          refreshData();
+          await refreshData();
       }
   };
+
   const confirmPayment = async (id: string, date?: string) => {
       const { error } = await supabase.from('payments').update({ 
           status: 'PAID', paidDate: date || new Date().toISOString().split('T')[0] 
@@ -424,9 +425,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       if (error) {
           console.error('Error confirming payment:', error);
-          alert(`Erro ao confirmar pagamento: ${error.message}`);
+          throw error;
       } else {
-          refreshData();
+          await refreshData();
       }
   };
 
