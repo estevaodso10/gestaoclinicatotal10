@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 
 interface AppContextType {
   currentUser: User | null;
+  isLoading: boolean;
   users: User[];
   rooms: Room[];
   allocations: Allocation[];
@@ -78,6 +79,7 @@ const generateUUID = () => {
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Data States
   const [users, setUsers] = useState<User[]>([]);
@@ -130,18 +132,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   useEffect(() => {
-    fetchData();
-
-    // Check Active Session
-    const checkSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.email) {
-            // Fetch user profile from public.users
-            const { data } = await supabase.from('users').select('*').eq('email', session.user.email).single();
-            if (data) setCurrentUser(data);
+    const init = async () => {
+        try {
+            // Check Active Session
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.email) {
+                // Fetch user profile from public.users
+                const { data } = await supabase.from('users').select('*').eq('email', session.user.email).single();
+                if (data) setCurrentUser(data);
+            }
+            
+            // Fetch initial data
+            await fetchData();
+        } catch (error) {
+            console.error('Error initializing app:', error);
+        } finally {
+            setIsLoading(false);
         }
     };
-    checkSession();
+    
+    init();
 
     // Listen for Auth Changes
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -518,7 +528,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{
-      currentUser, users, rooms, allocations, inventory, loans, payments, patients, events, registrations,
+      currentUser, isLoading, users, rooms, allocations, inventory, loans, payments, patients, events, registrations,
       systemName, systemLogo, updateSystemSettings,
       login, logout, addUser, updateUser, toggleUserStatus, addRoom, updateRoom, deleteRoom,
       addAllocation, deleteAllocation, addPayment, updatePayment, deletePayment, confirmPayment, 
