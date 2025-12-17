@@ -22,7 +22,7 @@ const getEnv = (key: string) => {
 };
 
 // Credenciais do Projeto Supabase
-const supabaseUrl = getEnv('REACT_APP_SUPABASE_URL') || 'https://dqqcozscupcrsafwlkvh.supabase.co';
-const supabaseKey = getEnv('REACT_APP_SUPABASE_ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxcWNvenNjdXBjcnNhZndsa3ZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3MzY1NjMsImV4cCI6MjA4MTMxMjU2M30.Y67DFz-8RDbYszmq4rMRQe8FTVA5qT3rt6SNSKtuGpM';
+const supabaseUrl = getEnv('REACT_APP_SUPABASE_URL') || 'https://bsnexijjjrlcdmrudubv.supabase.co';
+const supabaseKey = getEnv('REACT_APP_SUPABASE_ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzbmV4aWpqanJsY2RtcnVkdWJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU1OTcyMDYsImV4cCI6MjA4MTE3MzIwNn0.6l28QiCymkxxKUHUerRmB8fxoaQTTufHESfC2XZpgt4';
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
