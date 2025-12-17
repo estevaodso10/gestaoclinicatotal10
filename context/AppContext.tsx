@@ -136,14 +136,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         try {
             // Check Active Session
             const { data: { session } } = await supabase.auth.getSession();
+            let userFound = false;
+
             if (session?.user?.email) {
                 // Fetch user profile from public.users
                 const { data } = await supabase.from('users').select('*').eq('email', session.user.email).single();
-                if (data) setCurrentUser(data);
+                if (data) {
+                    setCurrentUser(data);
+                    userFound = true;
+                }
             }
             
-            // Fetch initial data
-            await fetchData();
+            // Fetch initial data ONLY if user is authenticated
+            if (userFound) {
+                await fetchData();
+            }
         } catch (error) {
             console.error('Error initializing app:', error);
         } finally {
