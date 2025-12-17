@@ -167,8 +167,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const logout = async () => {
-      await supabase.auth.signOut();
-      setCurrentUser(null);
+      try {
+        await supabase.auth.signOut();
+      } catch (error) {
+        console.error('Erro ao realizar logout:', error);
+      } finally {
+        setCurrentUser(null);
+      }
   };
 
   // --- CRUD WRAPPERS ---
