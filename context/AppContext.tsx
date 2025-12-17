@@ -34,7 +34,7 @@ interface AppContextType {
   addAllocation: (allocation: Omit<Allocation, 'id'>) => Promise<{ success: boolean; message: string }>;
   deleteAllocation: (id: string) => void;
   
-  addPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
+  addPayment: (payment: Omit<Payment, 'id' | 'status'>) => Promise<void>;
   updatePayment: (payment: Payment) => Promise<void>;
   deletePayment: (id: string) => Promise<void>;
   confirmPayment: (id: string, date?: string) => Promise<void>;
@@ -387,7 +387,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // PAYMENTS
-  const addPayment = async (data: Omit<Payment, 'id'>) => {
+  const addPayment = async (data: Omit<Payment, 'id' | 'status'>) => {
       const newId = generateUUID();
       const { error } = await supabase.from('payments').insert({ ...data, id: newId, status: 'PENDING' });
       if (error) {
