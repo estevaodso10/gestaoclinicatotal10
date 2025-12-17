@@ -19,7 +19,6 @@ import ProfessionalPaymentsPage from './pages/professional/Payments';
 import ProfessionalReservations from './pages/professional/Reservations';
 import ProfessionalEventsPage from './pages/professional/Events'; 
 import { Role } from './types';
-import { Loader2 } from 'lucide-react';
 
 // Componente para escutar eventos de autenticação (como recuperação de senha)
 // e realizar o redirecionamento correto dentro do HashRouter
@@ -41,19 +40,7 @@ const AuthHandler = () => {
 };
 
 const ProtectedRoute = ({ children, allowedRoles }: React.PropsWithChildren<{ allowedRoles: Role[] }>) => {
-    const { currentUser, isLoading } = useApp();
-
-    if (isLoading) {
-        return (
-            <div className="h-screen w-full flex items-center justify-center bg-gray-50">
-                <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                    <p className="text-gray-500 text-sm">Carregando sistema...</p>
-                </div>
-            </div>
-        );
-    }
-
+    const { currentUser } = useApp();
     if (!currentUser) return <Navigate to="/" />;
     if (!allowedRoles.includes(currentUser.role)) return <Navigate to="/" />;
     return <>{children}</>;
