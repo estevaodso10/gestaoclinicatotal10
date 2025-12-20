@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { FileText, ExternalLink, Globe, Lock, AlertCircle } from 'lucide-react';
+import { FileText, ExternalLink, Globe, Lock, AlertCircle, Clock } from 'lucide-react';
 
 const ProfessionalDocumentsPage: React.FC = () => {
   const { documents, currentUser } = useApp();
@@ -19,6 +19,17 @@ const ProfessionalDocumentsPage: React.FC = () => {
       if (a.targetUserId === b.targetUserId) return a.title.localeCompare(b.title);
       return (a.targetUserId ? -1 : 1); // Private first
   });
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -57,7 +68,15 @@ const ProfessionalDocumentsPage: React.FC = () => {
                             )}
                         </div>
                         
-                        <h3 className="font-bold text-gray-800 text-lg mb-6 leading-tight">{doc.title}</h3>
+                        <h3 className="font-bold text-gray-800 text-lg mb-2 leading-tight">{doc.title}</h3>
+                        
+                        {doc.createdAt && (
+                            <div className="flex items-center text-xs text-gray-400 mb-6">
+                                <Clock size={12} className="mr-1.5" />
+                                <span>{formatDate(doc.createdAt)}</span>
+                            </div>
+                        )}
+                        {!doc.createdAt && <div className="mb-6"></div>}
                     </div>
 
                     <a 
