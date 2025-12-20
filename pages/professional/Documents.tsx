@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { FileText, ExternalLink, Globe, Lock, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { FileText, ExternalLink, Globe, Lock, AlertCircle } from 'lucide-react';
 
 const ProfessionalDocumentsPage: React.FC = () => {
   const { documents, currentUser } = useApp();
@@ -57,11 +57,7 @@ const ProfessionalDocumentsPage: React.FC = () => {
                             )}
                         </div>
                         
-                        <h3 className="font-bold text-gray-800 text-lg mb-2 leading-tight">{doc.title}</h3>
-                        
-                        <p className="text-sm text-gray-500 mb-6 break-all line-clamp-2">
-                           Link: {doc.linkUrl}
-                        </p>
+                        <h3 className="font-bold text-gray-800 text-lg mb-6 leading-tight">{doc.title}</h3>
                     </div>
 
                     <a 
