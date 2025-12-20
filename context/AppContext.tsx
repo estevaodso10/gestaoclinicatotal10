@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Room, Allocation, Loan, Payment, Patient, InventoryItem, ClinicEvent, Role, EventRegistration } from '../types';
+import { User, Room, Allocation, Loan, Payment, Patient, InventoryItem, ClinicEvent, Role, EventRegistration, Document } from '../types';
 import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 
 interface AppContextType {
   currentUser: User | null;
+  isLoading: boolean;
   users: User[];
   rooms: Room[];
   allocations: Allocation[];
@@ -14,6 +15,7 @@ interface AppContextType {
   patients: Patient[];
   events: ClinicEvent[];
   registrations: EventRegistration[];
+  documents: Document[];
   
   systemName: string;
   systemLogo: string | null;
@@ -56,6 +58,10 @@ interface AppContextType {
   updatePatient: (patient: Patient) => void;
   deletePatient: (id: string) => void;
 
+  addDocument: (doc: Omit<Document, 'id' | 'createdAt'>) => void;
+  updateDocument: (doc: Document) => void;
+  deleteDocument: (id: string) => void;
+
   refreshData: () => void; 
 }
 
@@ -78,6 +84,7 @@ const generateUUID = () => {
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Data States
   const [users, setUsers] = useState<User[]>([]);
@@ -89,6 +96,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [events, setEvents] = useState<ClinicEvent[]>([]);
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   
   const [systemName, setSystemName] = useState('ClinicFlow');
   const [systemLogo, setSystemLogo] = useState<string | null>(null);
@@ -98,7 +106,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Parallel fetching for performance
       const [
           usersRes, roomsRes, allocRes, invRes, loansRes, 
-          payRes, patRes, eventsRes, regRes, settingsRes
+          payRes, patRes, eventsRes, regRes, docRes, settingsRes
       ] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('rooms').select('*'),
@@ -109,6 +117,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           supabase.from('patients').select('*'),
           supabase.from('events').select('*'),
           supabase.from('registrations').select('*'),
+          supabase.from('documents').select('*'),
           supabase.from('system_settings').select('*').single()
       ]);
 
@@ -121,6 +130,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if(patRes.data) setPatients(patRes.data);
       if(eventsRes.data) setEvents(eventsRes.data);
       if(regRes.data) setRegistrations(regRes.data);
+      if(docRes.data) setDocuments(docRes.data);
       
       // Load System Settings
       if(settingsRes.data) {
@@ -130,18 +140,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   useEffect(() => {
-    fetchData();
+    const init = async () => {
+        try {
+            // Check Active Session
+            const { data: { session } } = await supabase.auth.getSession();
+            let userFound = false;
 
-    // Check Active Session
-    const checkSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.email) {
-            // Fetch user profile from public.users
-            const { data } = await supabase.from('users').select('*').eq('email', session.user.email).single();
-            if (data) setCurrentUser(data);
+            if (session?.user?.email) {
+                // Fetch user profile from public.users
+                const { data } = await supabase.from('users').select('*').eq('email', session.user.email).single();
+                if (data) {
+                    setCurrentUser(data);
+                    userFound = true;
+                }
+            }
+            
+            // Fetch initial data ONLY if user is authenticated
+            if (userFound) {
+                await fetchData();
+            }
+        } catch (error) {
+            console.error('Error initializing app:', error);
+        } finally {
+            setIsLoading(false);
         }
     };
-    checkSession();
+    
+    init();
 
     // Listen for Auth Changes
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -516,15 +541,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  // DOCUMENTS
+  const addDocument = async (data: Omit<Document, 'id' | 'createdAt'>) => {
+      const newId = generateUUID();
+      const { error } = await supabase.from('documents').insert({ 
+          ...data, 
+          id: newId,
+          createdAt: new Date().toISOString()
+      });
+      if (error) {
+          console.error('Error adding document:', error);
+          alert(`Erro ao adicionar documento: ${error.message}`);
+      } else {
+          refreshData();
+      }
+  };
+
+  const updateDocument = async (data: Document) => {
+      const { error } = await supabase.from('documents').update(data).eq('id', data.id);
+      if (error) {
+          console.error('Error updating document:', error);
+          alert(`Erro ao atualizar documento: ${error.message}`);
+      } else {
+          refreshData();
+      }
+  };
+
+  const deleteDocument = async (id: string) => {
+      const { error } = await supabase.from('documents').delete().eq('id', id);
+      if (error) {
+          console.error('Error deleting document:', error);
+          alert(`Erro ao excluir documento: ${error.message}`);
+      } else {
+          refreshData();
+      }
+  };
+
   return (
     <AppContext.Provider value={{
-      currentUser, users, rooms, allocations, inventory, loans, payments, patients, events, registrations,
+      currentUser, isLoading, users, rooms, allocations, inventory, loans, payments, patients, events, registrations, documents,
       systemName, systemLogo, updateSystemSettings,
       login, logout, addUser, updateUser, toggleUserStatus, addRoom, updateRoom, deleteRoom,
       addAllocation, deleteAllocation, addPayment, updatePayment, deletePayment, confirmPayment, 
       requestLoan, returnLoan, addInventoryItem, updateInventoryItem, deleteInventoryItem,
       addEvent, updateEvent, deleteEvent, addRegistration, updateRegistration,
-      addPatient, updatePatient, deletePatient, refreshData
+      addPatient, updatePatient, deletePatient, addDocument, updateDocument, deleteDocument, refreshData
     }}>
       {children}
     </AppContext.Provider>

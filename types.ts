@@ -113,3 +113,11 @@ export interface EventRegistration {
   status: 'CONFIRMED' | 'REJECTED';
   attended?: boolean; // Indicates if the participant showed up
 }
+
+export interface Document {
+  id: string;
+  title: string;
+  linkUrl: string;
+  targetUserId: string | null; // null = All Professionals, string = Specific User ID
+  createdAt: string;
+}

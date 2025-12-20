@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Role } from '../types';
 import { 
   Users, Home, Calendar, CreditCard, Box, PieChart, UserCircle, 
-  LogOut, Menu, BriefcaseMedical, CalendarDays, X
+  LogOut, Menu, BriefcaseMedical, CalendarDays, X, FileText
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -93,6 +93,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <LinkItem to="/admin/rooms" icon={Home} label="Salas" />
               <LinkItem to="/admin/allocations" icon={Calendar} label="Alocações" />
               <LinkItem to="/admin/events" icon={CalendarDays} label="Eventos" />
+              <LinkItem to="/admin/documents" icon={FileText} label="Documentos" />
               <LinkItem to="/admin/payments" icon={CreditCard} label="Pagamentos" />
               <LinkItem to="/admin/inventory" icon={Box} label="Inventário" />
             </>
@@ -104,6 +105,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <LinkItem to="/pro/dashboard" icon={UserCircle} label="Meu Perfil" />
               <LinkItem to="/pro/reservations" icon={Calendar} label="Minhas Reservas" />
               <LinkItem to="/pro/events" icon={CalendarDays} label="Eventos" />
+              <LinkItem to="/pro/documents" icon={FileText} label="Documentos" />
               <LinkItem to="/pro/inventory" icon={Box} label="Inventário" />
               <LinkItem to="/pro/payments" icon={CreditCard} label="Meus Pagamentos" />
               <LinkItem to="/pro/patients" icon={BriefcaseMedical} label="Pacientes" />
