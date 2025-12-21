@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Role } from '../types';
 import { 
   Users, Home, Calendar, CreditCard, Box, PieChart, UserCircle, 
-  LogOut, Menu, BriefcaseMedical, CalendarDays, X, FileText
+  LogOut, Menu, BriefcaseMedical, CalendarDays, X, FileText, DollarSign
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -89,6 +89,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <>
               <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-2">Admin</div>
               <LinkItem to="/admin/dashboard" icon={PieChart} label="Dashboard" />
+              <LinkItem to="/admin/financial" icon={DollarSign} label="Financeiro" />
               <LinkItem to="/admin/users" icon={Users} label="Usuários" />
               <LinkItem to="/admin/rooms" icon={Home} label="Salas" />
               <LinkItem to="/admin/allocations" icon={Calendar} label="Alocações" />

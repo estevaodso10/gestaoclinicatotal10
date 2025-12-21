@@ -121,3 +121,39 @@ export interface Document {
   targetUserId: string | null; // null = All Professionals, string = Specific User ID
   createdAt: string;
 }
+
+// --- NOVOS TIPOS FINANCEIROS ---
+
+export type TransactionType = 'INCOME' | 'EXPENSE';
+
+export const INCOME_CATEGORIES = [
+  'Consultas',
+  'Procedimentos',
+  'Aluguel de Sala',
+  'Venda de Produtos',
+  'Outros'
+];
+
+export const EXPENSE_CATEGORIES = [
+  'Aluguel do Imóvel',
+  'Energia Elétrica',
+  'Água e Esgoto',
+  'Internet/Telefone',
+  'Limpeza',
+  'Manutenção Predial',
+  'Salários/Colaboradores',
+  'Impostos',
+  'Marketing',
+  'Materiais de Escritório',
+  'Outros'
+];
+
+export interface FinancialTransaction {
+  id: string;
+  description: string;
+  amount: number;
+  type: TransactionType;
+  category: string;
+  date: string; // YYYY-MM-DD
+  createdAt: string;
+}

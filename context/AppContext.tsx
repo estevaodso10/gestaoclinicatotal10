@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Room, Allocation, Loan, Payment, Patient, InventoryItem, ClinicEvent, Role, EventRegistration, Document } from '../types';
+import { User, Room, Allocation, Loan, Payment, Patient, InventoryItem, ClinicEvent, Role, EventRegistration, Document, FinancialTransaction } from '../types';
 import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 
@@ -16,6 +16,7 @@ interface AppContextType {
   events: ClinicEvent[];
   registrations: EventRegistration[];
   documents: Document[];
+  financialTransactions: FinancialTransaction[];
   
   systemName: string;
   systemLogo: string | null;
@@ -62,6 +63,10 @@ interface AppContextType {
   updateDocument: (doc: Document) => void;
   deleteDocument: (id: string) => void;
 
+  addFinancialTransaction: (transaction: Omit<FinancialTransaction, 'id' | 'createdAt'>) => void;
+  updateFinancialTransaction: (transaction: FinancialTransaction) => void;
+  deleteFinancialTransaction: (id: string) => void;
+
   refreshData: () => void; 
 }
 
@@ -97,6 +102,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [events, setEvents] = useState<ClinicEvent[]>([]);
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [financialTransactions, setFinancialTransactions] = useState<FinancialTransaction[]>([]);
   
   const [systemName, setSystemName] = useState('ClinicFlow');
   const [systemLogo, setSystemLogo] = useState<string | null>(null);
@@ -106,7 +112,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Parallel fetching for performance
       const [
           usersRes, roomsRes, allocRes, invRes, loansRes, 
-          payRes, patRes, eventsRes, regRes, docRes, settingsRes
+          payRes, patRes, eventsRes, regRes, docRes, settingsRes, finRes
       ] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('rooms').select('*'),
@@ -118,7 +124,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           supabase.from('events').select('*'),
           supabase.from('registrations').select('*'),
           supabase.from('documents').select('*'),
-          supabase.from('system_settings').select('*').single()
+          supabase.from('system_settings').select('*').single(),
+          supabase.from('financial_transactions').select('*')
       ]);
 
       if(usersRes.data) setUsers(usersRes.data);
@@ -131,6 +138,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if(eventsRes.data) setEvents(eventsRes.data);
       if(regRes.data) setRegistrations(regRes.data);
       if(docRes.data) setDocuments(docRes.data);
+      if(finRes.data) setFinancialTransactions(finRes.data);
       
       // Load System Settings
       if(settingsRes.data) {
@@ -577,15 +585,52 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  // FINANCIAL TRANSACTIONS (New)
+  const addFinancialTransaction = async (data: Omit<FinancialTransaction, 'id' | 'createdAt'>) => {
+      const newId = generateUUID();
+      const { error } = await supabase.from('financial_transactions').insert({ 
+          ...data, 
+          id: newId,
+          createdAt: new Date().toISOString()
+      });
+      if (error) {
+          console.error('Error adding transaction:', error);
+          alert(`Erro ao adicionar transação: ${error.message}`);
+      } else {
+          refreshData();
+      }
+  };
+
+  const updateFinancialTransaction = async (data: FinancialTransaction) => {
+      const { error } = await supabase.from('financial_transactions').update(data).eq('id', data.id);
+      if (error) {
+          console.error('Error updating transaction:', error);
+          alert(`Erro ao atualizar transação: ${error.message}`);
+      } else {
+          refreshData();
+      }
+  };
+
+  const deleteFinancialTransaction = async (id: string) => {
+      const { error } = await supabase.from('financial_transactions').delete().eq('id', id);
+      if (error) {
+          console.error('Error deleting transaction:', error);
+          alert(`Erro ao excluir transação: ${error.message}`);
+      } else {
+          refreshData();
+      }
+  };
+
   return (
     <AppContext.Provider value={{
-      currentUser, isLoading, users, rooms, allocations, inventory, loans, payments, patients, events, registrations, documents,
+      currentUser, isLoading, users, rooms, allocations, inventory, loans, payments, patients, events, registrations, documents, financialTransactions,
       systemName, systemLogo, updateSystemSettings,
       login, logout, addUser, updateUser, toggleUserStatus, addRoom, updateRoom, deleteRoom,
       addAllocation, deleteAllocation, addPayment, updatePayment, deletePayment, confirmPayment, 
       requestLoan, returnLoan, addInventoryItem, updateInventoryItem, deleteInventoryItem,
       addEvent, updateEvent, deleteEvent, addRegistration, updateRegistration,
-      addPatient, updatePatient, deletePatient, addDocument, updateDocument, deleteDocument, refreshData
+      addPatient, updatePatient, deletePatient, addDocument, updateDocument, deleteDocument, 
+      addFinancialTransaction, updateFinancialTransaction, deleteFinancialTransaction, refreshData
     }}>
       {children}
     </AppContext.Provider>

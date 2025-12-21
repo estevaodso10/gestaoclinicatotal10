@@ -13,6 +13,7 @@ import AdminInventoryPage from './pages/admin/Inventory';
 import AdminDashboard from './pages/admin/Dashboard'; 
 import EventsPage from './pages/admin/Events'; 
 import DocumentsPage from './pages/admin/Documents';
+import FinancialPage from './pages/admin/Financial';
 import ProfessionalDashboard from './pages/professional/Dashboard'; 
 import ProfessionalInventoryPage from './pages/professional/Inventory';
 import PatientsPage from './pages/professional/Patients';
@@ -71,6 +72,7 @@ const AppRoutes = () => {
                 
                 {/* Admin Routes */}
                 <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={[Role.ADMIN]}><Layout><AdminDashboard /></Layout></ProtectedRoute>} />
+                <Route path="/admin/financial" element={<ProtectedRoute allowedRoles={[Role.ADMIN]}><Layout><FinancialPage /></Layout></ProtectedRoute>} />
                 <Route path="/admin/users" element={<ProtectedRoute allowedRoles={[Role.ADMIN]}><Layout><UsersPage /></Layout></ProtectedRoute>} />
                 <Route path="/admin/rooms" element={<ProtectedRoute allowedRoles={[Role.ADMIN]}><Layout><RoomsPage /></Layout></ProtectedRoute>} />
                 <Route path="/admin/allocations" element={<ProtectedRoute allowedRoles={[Role.ADMIN]}><Layout><AllocationsPage /></Layout></ProtectedRoute>} />
