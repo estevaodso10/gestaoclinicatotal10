@@ -126,34 +126,27 @@ export interface Document {
 
 export type TransactionType = 'INCOME' | 'EXPENSE';
 
-export const INCOME_CATEGORIES = [
-  'Consultas',
-  'Procedimentos',
-  'Aluguel de Sala',
-  'Venda de Produtos',
-  'Outros'
+// Categorias padrão para inicialização (Fallback)
+export const DEFAULT_INCOME_CATEGORIES = [
+  'Consultas', 'Procedimentos', 'Aluguel de Sala', 'Venda de Produtos', 'Outros'
+];
+export const DEFAULT_EXPENSE_CATEGORIES = [
+  'Aluguel do Imóvel', 'Energia Elétrica', 'Água e Esgoto', 'Internet/Telefone', 
+  'Limpeza', 'Manutenção Predial', 'Salários/Colaboradores', 'Impostos', 'Marketing', 'Materiais de Escritório', 'Outros'
 ];
 
-export const EXPENSE_CATEGORIES = [
-  'Aluguel do Imóvel',
-  'Energia Elétrica',
-  'Água e Esgoto',
-  'Internet/Telefone',
-  'Limpeza',
-  'Manutenção Predial',
-  'Salários/Colaboradores',
-  'Impostos',
-  'Marketing',
-  'Materiais de Escritório',
-  'Outros'
-];
+export interface FinancialCategory {
+  id: string;
+  name: string;
+  type: TransactionType;
+}
 
 export interface FinancialTransaction {
   id: string;
   description: string;
   amount: number;
   type: TransactionType;
-  category: string;
+  category: string; // Armazena o nome da categoria para simplificação neste modelo NoSQL-like
   date: string; // YYYY-MM-DD
   createdAt: string;
 }

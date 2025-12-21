@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Room, Allocation, Loan, Payment, Patient, InventoryItem, ClinicEvent, Role, EventRegistration, Document, FinancialTransaction } from '../types';
+import { User, Room, Allocation, Loan, Payment, Patient, InventoryItem, ClinicEvent, Role, EventRegistration, Document, FinancialTransaction, FinancialCategory, DEFAULT_INCOME_CATEGORIES, DEFAULT_EXPENSE_CATEGORIES } from '../types';
 import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
 
@@ -17,6 +17,7 @@ interface AppContextType {
   registrations: EventRegistration[];
   documents: Document[];
   financialTransactions: FinancialTransaction[];
+  financialCategories: FinancialCategory[];
   
   systemName: string;
   systemLogo: string | null;
@@ -67,6 +68,10 @@ interface AppContextType {
   updateFinancialTransaction: (transaction: FinancialTransaction) => void;
   deleteFinancialTransaction: (id: string) => void;
 
+  addFinancialCategory: (category: Omit<FinancialCategory, 'id'>) => void;
+  updateFinancialCategory: (category: FinancialCategory, oldName: string) => void;
+  deleteFinancialCategory: (id: string, categoryName: string) => void;
+
   refreshData: () => void; 
 }
 
@@ -103,6 +108,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [financialTransactions, setFinancialTransactions] = useState<FinancialTransaction[]>([]);
+  const [financialCategories, setFinancialCategories] = useState<FinancialCategory[]>([]);
   
   const [systemName, setSystemName] = useState('ClinicFlow');
   const [systemLogo, setSystemLogo] = useState<string | null>(null);
@@ -112,7 +118,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Parallel fetching for performance
       const [
           usersRes, roomsRes, allocRes, invRes, loansRes, 
-          payRes, patRes, eventsRes, regRes, docRes, settingsRes, finRes
+          payRes, patRes, eventsRes, regRes, docRes, settingsRes, finRes, catRes
       ] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('rooms').select('*'),
@@ -125,7 +131,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           supabase.from('registrations').select('*'),
           supabase.from('documents').select('*'),
           supabase.from('system_settings').select('*').single(),
-          supabase.from('financial_transactions').select('*')
+          supabase.from('financial_transactions').select('*'),
+          supabase.from('financial_categories').select('*')
       ]);
 
       if(usersRes.data) setUsers(usersRes.data);
@@ -139,6 +146,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if(regRes.data) setRegistrations(regRes.data);
       if(docRes.data) setDocuments(docRes.data);
       if(finRes.data) setFinancialTransactions(finRes.data);
+      
+      // Categories Logic: If empty, use defaults (and maybe seed DB in future)
+      if(catRes.data && catRes.data.length > 0) {
+          setFinancialCategories(catRes.data);
+      } else {
+          // If no categories in DB, simulate defaults in state to not break UI
+          // Ideally we would insert these into DB here, but let's just use them in memory for now
+          // or seed them.
+          const defaultCats: FinancialCategory[] = [
+             ...DEFAULT_INCOME_CATEGORIES.map((c, i) => ({ id: `inc-${i}`, name: c, type: 'INCOME' as const })),
+             ...DEFAULT_EXPENSE_CATEGORIES.map((c, i) => ({ id: `exp-${i}`, name: c, type: 'EXPENSE' as const }))
+          ];
+          setFinancialCategories(defaultCats);
+      }
       
       // Load System Settings
       if(settingsRes.data) {
@@ -585,7 +606,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
-  // FINANCIAL TRANSACTIONS (New)
+  // FINANCIAL TRANSACTIONS
   const addFinancialTransaction = async (data: Omit<FinancialTransaction, 'id' | 'createdAt'>) => {
       const newId = generateUUID();
       const { error } = await supabase.from('financial_transactions').insert({ 
@@ -621,16 +642,78 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
+  // FINANCIAL CATEGORIES
+  const addFinancialCategory = async (data: Omit<FinancialCategory, 'id'>) => {
+      const newId = generateUUID();
+      const { error } = await supabase.from('financial_categories').insert({ ...data, id: newId });
+      if (error) {
+          console.error('Error adding category:', error);
+          alert(`Erro ao adicionar categoria: ${error.message}`);
+      } else {
+          refreshData();
+      }
+  };
+
+  const updateFinancialCategory = async (data: FinancialCategory, oldName: string) => {
+      // 1. Update Category
+      const { error: catError } = await supabase.from('financial_categories').update({ name: data.name, type: data.type }).eq('id', data.id);
+      
+      if (catError) {
+          console.error('Error updating category:', catError);
+          alert(`Erro ao atualizar categoria: ${catError.message}`);
+          return;
+      }
+
+      // 2. Cascade Update Transactions (Only if name changed)
+      if (oldName !== data.name) {
+          const { error: transError } = await supabase.from('financial_transactions')
+              .update({ category: data.name })
+              .eq('category', oldName)
+              .eq('type', data.type); // Ensure type match just in case
+          
+          if (transError) {
+              console.error('Error updating linked transactions:', transError);
+              alert('A categoria foi atualizada, mas houve um erro ao atualizar as transações vinculadas.');
+          }
+      }
+
+      refreshData();
+  };
+
+  const deleteFinancialCategory = async (id: string, categoryName: string) => {
+      // 1. Update Transactions to "Pendente"
+      const { error: transError } = await supabase.from('financial_transactions')
+          .update({ category: 'Pendente' })
+          .eq('category', categoryName);
+
+      if (transError) {
+          console.error('Error updating linked transactions:', transError);
+          alert(`Erro ao desvincular transações: ${transError.message}`);
+          return;
+      }
+
+      // 2. Delete Category
+      const { error: catError } = await supabase.from('financial_categories').delete().eq('id', id);
+      
+      if (catError) {
+          console.error('Error deleting category:', catError);
+          alert(`Erro ao excluir categoria: ${catError.message}`);
+      } else {
+          refreshData();
+      }
+  };
+
   return (
     <AppContext.Provider value={{
-      currentUser, isLoading, users, rooms, allocations, inventory, loans, payments, patients, events, registrations, documents, financialTransactions,
+      currentUser, isLoading, users, rooms, allocations, inventory, loans, payments, patients, events, registrations, documents, financialTransactions, financialCategories,
       systemName, systemLogo, updateSystemSettings,
       login, logout, addUser, updateUser, toggleUserStatus, addRoom, updateRoom, deleteRoom,
       addAllocation, deleteAllocation, addPayment, updatePayment, deletePayment, confirmPayment, 
       requestLoan, returnLoan, addInventoryItem, updateInventoryItem, deleteInventoryItem,
       addEvent, updateEvent, deleteEvent, addRegistration, updateRegistration,
       addPatient, updatePatient, deletePatient, addDocument, updateDocument, deleteDocument, 
-      addFinancialTransaction, updateFinancialTransaction, deleteFinancialTransaction, refreshData
+      addFinancialTransaction, updateFinancialTransaction, deleteFinancialTransaction, 
+      addFinancialCategory, updateFinancialCategory, deleteFinancialCategory, refreshData
     }}>
       {children}
     </AppContext.Provider>
