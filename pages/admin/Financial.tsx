@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { FinancialTransaction, TransactionType, FinancialCategory } from '../../types';
 import { 
     DollarSign, TrendingUp, TrendingDown, Plus, Filter, 
-    Trash2, Edit, Calendar, List, PieChart, ArrowUp, ArrowDown, Tags, X
+    Trash2, Edit, Calendar, List, PieChart, ArrowUp, ArrowDown, Tags, X,
+    ChevronLeft, ChevronRight, CheckSquare, Square, CalendarDays
 } from 'lucide-react';
 
 const FinancialPage: React.FC = () => {
@@ -15,7 +16,15 @@ const FinancialPage: React.FC = () => {
 
   // --- STATE ---
   const [activeTab, setActiveTab] = useState<'TRANSACTIONS' | 'REPORTS'>('TRANSACTIONS');
-  const [filterMonth, setFilterMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  
+  // Date Filter State (Multi-month)
+  const currentYearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([currentYearMonth]);
+  
+  // Date Picker Modal State
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
+  const datePickerRef = useRef<HTMLDivElement>(null);
   
   // Transaction Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,24 +54,27 @@ const FinancialPage: React.FC = () => {
   const incomeCategories = useMemo(() => financialCategories.filter(c => c.type === 'INCOME').sort((a,b) => a.name.localeCompare(b.name)), [financialCategories]);
   const expenseCategories = useMemo(() => financialCategories.filter(c => c.type === 'EXPENSE').sort((a,b) => a.name.localeCompare(b.name)), [financialCategories]);
 
-  // Ensure 'Pendente' exists for UI if needed or handle logic
   const getCategoriesByType = (type: TransactionType) => type === 'INCOME' ? incomeCategories : expenseCategories;
 
   // --- FILTERED DATA ---
-  const currentMonthTransactions = useMemo(() => {
-      return financialTransactions.filter(t => t.date.startsWith(filterMonth));
-  }, [financialTransactions, filterMonth]);
+  const filteredTransactions = useMemo(() => {
+      if (selectedMonths.length === 0) return [];
+      return financialTransactions.filter(t => {
+          const transMonth = t.date.slice(0, 7); // YYYY-MM
+          return selectedMonths.includes(transMonth);
+      });
+  }, [financialTransactions, selectedMonths]);
 
   const totals = useMemo(() => {
-      const income = currentMonthTransactions.filter(t => t.type === 'INCOME').reduce((acc, curr) => acc + curr.amount, 0);
-      const expense = currentMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, curr) => acc + curr.amount, 0);
+      const income = filteredTransactions.filter(t => t.type === 'INCOME').reduce((acc, curr) => acc + curr.amount, 0);
+      const expense = filteredTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, curr) => acc + curr.amount, 0);
       return { income, expense, balance: income - expense };
-  }, [currentMonthTransactions]);
+  }, [filteredTransactions]);
 
   const categoryBreakdown = useMemo(() => {
       const breakdown: Record<string, { income: number, expense: number }> = {};
       
-      // Initialize with 'Pendente' to ensure it shows up if used
+      // Initialize with 'Pendente'
       breakdown['Pendente'] = { income: 0, expense: 0 };
       
       // Initialize existing categories
@@ -70,7 +82,7 @@ const FinancialPage: React.FC = () => {
           breakdown[cat.name] = { income: 0, expense: 0 };
       });
 
-      currentMonthTransactions.forEach(t => {
+      filteredTransactions.forEach(t => {
           const catName = t.category || 'Pendente';
           if (!breakdown[catName]) breakdown[catName] = { income: 0, expense: 0 };
           
@@ -78,18 +90,71 @@ const FinancialPage: React.FC = () => {
           else breakdown[catName].expense += t.amount;
       });
 
-      // Filter out empty categories
       return Object.entries(breakdown)
           .filter(([_, vals]) => vals.income > 0 || vals.expense > 0)
           .sort((a, b) => (b[1].income + b[1].expense) - (a[1].income + a[1].expense));
-  }, [currentMonthTransactions, financialCategories]);
+  }, [filteredTransactions, financialCategories]);
 
   // --- HANDLERS ---
+
+  // Close Date Picker on Click Outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setIsDatePickerOpen(false);
+      }
+    }
+    if (isDatePickerOpen) {
+        document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isDatePickerOpen]);
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   const formatDate = (dateStr: string) => {
       const [y, m, d] = dateStr.split('-');
       return `${d}/${m}/${y}`;
+  };
+
+  // --- DATE PICKER LOGIC ---
+  const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  const toggleMonthSelection = (monthIndex: number) => {
+      const monthStr = String(monthIndex + 1).padStart(2, '0');
+      const key = `${pickerYear}-${monthStr}`;
+      
+      if (selectedMonths.includes(key)) {
+          setSelectedMonths(selectedMonths.filter(m => m !== key));
+      } else {
+          setSelectedMonths([...selectedMonths, key].sort()); // Keep sorted
+      }
+  };
+
+  const selectAllYear = () => {
+      const yearMonths = Array.from({length: 12}, (_, i) => {
+          const monthStr = String(i + 1).padStart(2, '0');
+          return `${pickerYear}-${monthStr}`;
+      });
+      
+      // Merge with existing, avoiding duplicates
+      const unique = new Set([...selectedMonths, ...yearMonths]);
+      setSelectedMonths(Array.from(unique).sort());
+  };
+
+  const getDisplayText = () => {
+      if (selectedMonths.length === 0) return 'Selecione o período';
+      if (selectedMonths.length === 1) {
+          const [y, m] = selectedMonths[0].split('-');
+          return `${MONTH_NAMES[parseInt(m)-1]}/${y}`;
+      }
+      // Check if full year is selected
+      const years = [...new Set(selectedMonths.map(m => m.split('-')[0]))];
+      if (years.length === 1 && selectedMonths.length === 12) {
+          return `${years[0]} (Completo)`;
+      }
+      return `${selectedMonths.length} meses selecionados`;
   };
 
   // Transaction Handlers
@@ -99,7 +164,6 @@ const FinancialPage: React.FC = () => {
           setFormData({ ...trans });
       } else {
           setEditingTransaction(null);
-          // Set default category based on type
           const defaultCat = incomeCategories.length > 0 ? incomeCategories[0].name : '';
           setFormData({
             type: 'INCOME',
@@ -122,7 +186,6 @@ const FinancialPage: React.FC = () => {
       e.preventDefault();
       if (!formData.description || !formData.amount || !formData.date) return;
       
-      // Fallback if no category selected/exists
       const finalCategory = formData.category || 'Pendente';
 
       if (editingTransaction) {
@@ -162,8 +225,6 @@ const FinancialPage: React.FC = () => {
       } else {
           addFinancialCategory(categoryFormData as Omit<FinancialCategory, 'id'>);
       }
-      // Reset form but keep modal open for list management, or close? 
-      // Better UX to reset form state for 'add' but close if 'edit'.
       if(editingCategory) {
           setEditingCategory(null);
           setCategoryFormData({ name: '', type: 'INCOME' });
@@ -205,14 +266,72 @@ const FinancialPage: React.FC = () => {
                  >
                     <Tags size={18} /> <span className="hidden sm:inline">Categorias</span>
                  </button>
-                 <div className="relative">
-                    <input 
-                        type="month" 
-                        value={filterMonth}
-                        onChange={(e) => setFilterMonth(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-secondary focus:outline-none"
-                    />
+                 
+                 {/* Multi-Month Picker */}
+                 <div className="relative" ref={datePickerRef}>
+                    <button 
+                        onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+                        className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-gray-50 transition w-full md:w-auto min-w-[180px] justify-between"
+                    >
+                        <div className="flex items-center">
+                            <CalendarDays size={18} className="mr-2 text-gray-500"/>
+                            <span className="text-sm font-medium">{getDisplayText()}</span>
+                        </div>
+                    </button>
+
+                    {isDatePickerOpen && (
+                        <div className="absolute right-0 top-12 bg-white rounded-xl shadow-xl border border-gray-200 p-4 z-50 w-72 animate-in fade-in zoom-in-95 duration-100">
+                            {/* Year Navigation */}
+                            <div className="flex justify-between items-center mb-4">
+                                <button onClick={() => setPickerYear(pickerYear - 1)} className="p-1 hover:bg-gray-100 rounded">
+                                    <ChevronLeft size={20} />
+                                </button>
+                                <span className="font-bold text-lg">{pickerYear}</span>
+                                <button onClick={() => setPickerYear(pickerYear + 1)} className="p-1 hover:bg-gray-100 rounded">
+                                    <ChevronRight size={20} />
+                                </button>
+                            </div>
+
+                            {/* Months Grid */}
+                            <div className="grid grid-cols-3 gap-2 mb-4">
+                                {MONTH_NAMES.map((month, index) => {
+                                    const key = `${pickerYear}-${String(index + 1).padStart(2, '0')}`;
+                                    const isSelected = selectedMonths.includes(key);
+                                    return (
+                                        <button
+                                            key={month}
+                                            onClick={() => toggleMonthSelection(index)}
+                                            className={`py-2 px-1 text-sm rounded-md transition border ${
+                                                isSelected 
+                                                ? 'bg-secondary text-white border-secondary font-medium' 
+                                                : 'bg-white text-gray-700 border-gray-100 hover:bg-gray-50 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            {month}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Footer Actions */}
+                            <div className="flex flex-col gap-2 border-t pt-3">
+                                <button 
+                                    onClick={selectAllYear}
+                                    className="w-full text-xs text-secondary hover:bg-blue-50 py-2 rounded font-medium flex items-center justify-center"
+                                >
+                                    <CheckSquare size={14} className="mr-1"/> Marcar todos de {pickerYear}
+                                </button>
+                                <button 
+                                    onClick={() => setIsDatePickerOpen(false)}
+                                    className="w-full bg-primary text-white py-2 rounded-md text-sm font-medium hover:bg-slate-700"
+                                >
+                                    Confirmar
+                                </button>
+                            </div>
+                        </div>
+                    )}
                  </div>
+
                  {activeTab === 'TRANSACTIONS' && (
                     <button onClick={() => openModal()} className="bg-secondary text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-600 transition">
                         <Plus size={18} /> <span className="hidden sm:inline">Lançamento</span>
@@ -295,7 +414,7 @@ const FinancialPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {currentMonthTransactions
+                            {filteredTransactions
                                 .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                                 .map(t => (
                                 <tr key={t.id} className="hover:bg-gray-50">
@@ -315,9 +434,11 @@ const FinancialPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ))}
-                            {currentMonthTransactions.length === 0 && (
+                            {filteredTransactions.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">Nenhum lançamento neste mês.</td>
+                                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                        {selectedMonths.length === 0 ? "Selecione um mês para visualizar." : "Nenhum lançamento encontrado para o período selecionado."}
+                                    </td>
                                 </tr>
                             )}
                         </tbody>
@@ -362,6 +483,16 @@ const FinancialPage: React.FC = () => {
                            <p className="text-center text-gray-400">Sem dados para exibir.</p>
                        )}
                    </div>
+               </div>
+
+               <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                   <h4 className="font-bold text-blue-800 mb-2">Resumo do Período</h4>
+                   <p className="text-sm text-blue-700">
+                       No período selecionado ({getDisplayText()}), o saldo operacional é de <strong>{formatCurrency(totals.balance)}</strong>.
+                       {totals.income > 0 && totals.expense > 0 && (
+                           <span> As despesas representam <strong>{((totals.expense / totals.income) * 100).toFixed(1)}%</strong> da receita total.</span>
+                       )}
+                   </p>
                </div>
            </div>
        )}
