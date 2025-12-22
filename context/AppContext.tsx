@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { User, Room, Allocation, Loan, Payment, Patient, InventoryItem, ClinicEvent, Role, EventRegistration, Document, FinancialTransaction, FinancialCategory, DEFAULT_INCOME_CATEGORIES, DEFAULT_EXPENSE_CATEGORIES } from '../types';
 import { supabase } from '../supabaseClient';
 import { createClient } from '@supabase/supabase-js';
@@ -19,6 +19,10 @@ interface AppContextType {
   financialTransactions: FinancialTransaction[];
   financialCategories: FinancialCategory[];
   
+  // Notifications
+  unreadDocumentsCount: number;
+  markDocumentsAsRead: () => void;
+
   systemName: string;
   systemLogo: string | null;
   updateSystemSettings: (name: string, logo: string | null) => Promise<void>;
@@ -113,6 +117,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [systemName, setSystemName] = useState('ClinicFlow');
   const [systemLogo, setSystemLogo] = useState<string | null>(null);
 
+  // Notification State
+  const [lastDocumentsVisit, setLastDocumentsVisit] = useState<string>(new Date(0).toISOString());
+
   // --- DATA FETCHING ---
   const fetchData = async () => {
       // Parallel fetching for performance
@@ -181,6 +188,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (data) {
                     setCurrentUser(data);
                     userFound = true;
+                    // Load notification state
+                    const storedVisit = localStorage.getItem(`lastDocumentsVisit_${data.id}`);
+                    if (storedVisit) setLastDocumentsVisit(storedVisit);
                 }
             }
             
@@ -201,7 +211,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user?.email) {
              const { data } = await supabase.from('users').select('*').eq('email', session.user.email).single();
-             if (data) setCurrentUser(data);
+             if (data) {
+                 setCurrentUser(data);
+                 const storedVisit = localStorage.getItem(`lastDocumentsVisit_${data.id}`);
+                 if (storedVisit) setLastDocumentsVisit(storedVisit);
+             }
              fetchData();
         } else if (event === 'SIGNED_OUT') {
              setCurrentUser(null);
@@ -214,6 +228,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const refreshData = () => fetchData();
+
+  // --- NOTIFICATION LOGIC ---
+  const unreadDocumentsCount = useMemo(() => {
+      if (!currentUser || currentUser.role !== Role.PROFESSIONAL) return 0;
+      
+      return documents.filter(doc => {
+          // Check if document targets this user or is public
+          const isTarget = doc.targetUserId === null || doc.targetUserId === currentUser.id;
+          // Check if it's newer than the last visit
+          const isNew = new Date(doc.createdAt) > new Date(lastDocumentsVisit);
+          return isTarget && isNew;
+      }).length;
+  }, [documents, currentUser, lastDocumentsVisit]);
+
+  const markDocumentsAsRead = () => {
+      if (!currentUser) return;
+      const now = new Date().toISOString();
+      setLastDocumentsVisit(now);
+      localStorage.setItem(`lastDocumentsVisit_${currentUser.id}`, now);
+  };
 
   // --- AUTH ACTIONS ---
   const login = async (email: string) => { 
@@ -706,6 +740,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       currentUser, isLoading, users, rooms, allocations, inventory, loans, payments, patients, events, registrations, documents, financialTransactions, financialCategories,
+      unreadDocumentsCount, markDocumentsAsRead,
       systemName, systemLogo, updateSystemSettings,
       login, logout, addUser, updateUser, toggleUserStatus, addRoom, updateRoom, deleteRoom,
       addAllocation, deleteAllocation, addPayment, updatePayment, deletePayment, confirmPayment, 

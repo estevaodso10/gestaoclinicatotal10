@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { FileText, ExternalLink, Globe, Lock, AlertCircle, Clock } from 'lucide-react';
 
 const ProfessionalDocumentsPage: React.FC = () => {
-  const { documents, currentUser } = useApp();
+  const { documents, currentUser, markDocumentsAsRead } = useApp();
+
+  // Mark documents as read when the page opens
+  useEffect(() => {
+    markDocumentsAsRead();
+  }, []);
 
   if (!currentUser) return null;
 

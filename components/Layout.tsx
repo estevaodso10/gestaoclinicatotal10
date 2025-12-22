@@ -8,7 +8,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, logout, systemName, systemLogo } = useApp();
+  const { currentUser, logout, systemName, systemLogo, unreadDocumentsCount } = useApp();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -18,18 +18,25 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const LinkItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
+  const LinkItem = ({ to, icon: Icon, label, badgeCount }: { to: string, icon: any, label: string, badgeCount?: number }) => (
     <Link 
       to={to} 
       onClick={() => setIsMobileMenuOpen(false)}
-      className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+      className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
         isActive(to) 
           ? 'bg-secondary text-white shadow-md' 
           : 'text-gray-400 hover:text-white hover:bg-gray-800'
       }`}
     >
-      <Icon size={20} className="shrink-0" />
-      <span className="font-medium">{label}</span>
+      <div className="flex items-center space-x-3">
+        <Icon size={20} className="shrink-0" />
+        <span className="font-medium">{label}</span>
+      </div>
+      {badgeCount !== undefined && badgeCount > 0 && (
+          <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              {badgeCount}
+          </span>
+      )}
     </Link>
   );
 
@@ -89,14 +96,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <>
               <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-2">Admin</div>
               <LinkItem to="/admin/dashboard" icon={PieChart} label="Dashboard" />
-              <LinkItem to="/admin/financial" icon={DollarSign} label="Financeiro" />
               <LinkItem to="/admin/users" icon={Users} label="Usuários" />
               <LinkItem to="/admin/rooms" icon={Home} label="Salas" />
               <LinkItem to="/admin/allocations" icon={Calendar} label="Alocações" />
-              <LinkItem to="/admin/events" icon={CalendarDays} label="Eventos" />
-              <LinkItem to="/admin/documents" icon={FileText} label="Documentos" />
               <LinkItem to="/admin/payments" icon={CreditCard} label="Pagamentos" />
               <LinkItem to="/admin/inventory" icon={Box} label="Inventário" />
+              <LinkItem to="/admin/events" icon={CalendarDays} label="Eventos" />
+              <LinkItem to="/admin/documents" icon={FileText} label="Documentos" />
+              <LinkItem to="/admin/financial" icon={DollarSign} label="Financeiro" />
             </>
           )}
 
@@ -106,7 +113,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <LinkItem to="/pro/dashboard" icon={UserCircle} label="Meu Perfil" />
               <LinkItem to="/pro/reservations" icon={Calendar} label="Minhas Reservas" />
               <LinkItem to="/pro/events" icon={CalendarDays} label="Eventos" />
-              <LinkItem to="/pro/documents" icon={FileText} label="Documentos" />
+              <LinkItem to="/pro/documents" icon={FileText} label="Documentos" badgeCount={unreadDocumentsCount} />
               <LinkItem to="/pro/inventory" icon={Box} label="Inventário" />
               <LinkItem to="/pro/payments" icon={CreditCard} label="Meus Pagamentos" />
               <LinkItem to="/pro/patients" icon={BriefcaseMedical} label="Pacientes" />
