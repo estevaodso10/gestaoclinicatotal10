@@ -67,7 +67,7 @@ export interface Payment {
   dueDate: string;
   paidDate?: string;
   status: 'PENDING' | 'PAID';
-  createdAt: string; // Added for notifications
+  createdAt?: string; // Optional due to DB schema constraints
 }
 
 export interface Patient {

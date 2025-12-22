@@ -267,8 +267,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const isTarget = pay.userId === currentUser.id;
           
           // Check if it's newer than the last visit
-          // Fallback to epoch 0 if createdAt is missing
-          const payDate = pay.createdAt ? new Date(pay.createdAt) : new Date(0);
+          // Try to handle camelCase createdAt or snake_case created_at (if Supabase returned it)
+          const rawDate = pay.createdAt || (pay as any).created_at;
+          const payDate = rawDate ? new Date(rawDate) : new Date(0);
           const visitDate = new Date(lastPaymentsVisit);
           
           const isNew = payDate.getTime() > visitDate.getTime();
@@ -518,12 +519,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // PAYMENTS
   const addPayment = async (data: Omit<Payment, 'id' | 'status' | 'createdAt'>) => {
       const newId = generateUUID();
-      const { error } = await supabase.from('payments').insert({ 
-          ...data, 
-          id: newId, 
-          status: 'PENDING',
-          createdAt: new Date().toISOString()
-      });
+      // EXPLICIT PAYLOAD CONSTRUCTION to prevent 'createdAt' from being sent
+      const payload = {
+          id: newId,
+          userId: data.userId,
+          amount: data.amount,
+          dueDate: data.dueDate,
+          paidDate: data.paidDate || null,
+          status: 'PENDING'
+      };
+      
+      const { error } = await supabase.from('payments').insert(payload);
       if (error) {
           console.error('Error adding payment:', error);
           throw error;
@@ -533,7 +539,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updatePayment = async (data: Payment) => {
-      const { error } = await supabase.from('payments').update(data).eq('id', data.id);
+      // EXPLICIT PAYLOAD CONSTRUCTION
+      const payload = {
+          userId: data.userId,
+          amount: data.amount,
+          dueDate: data.dueDate,
+          paidDate: data.paidDate,
+          status: data.status
+      };
+
+      const { error } = await supabase.from('payments').update(payload).eq('id', data.id);
       if (error) {
           console.error('Error updating payment:', error);
           throw error;
