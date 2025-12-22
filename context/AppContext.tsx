@@ -22,8 +22,6 @@ interface AppContextType {
   // Notifications
   unreadDocumentsCount: number;
   markDocumentsAsRead: () => void;
-  unreadPaymentsCount: number;
-  markPaymentsAsRead: () => void;
 
   systemName: string;
   systemLogo: string | null;
@@ -44,7 +42,7 @@ interface AppContextType {
   addAllocation: (allocation: Omit<Allocation, 'id'>) => Promise<{ success: boolean; message: string }>;
   deleteAllocation: (id: string) => void;
   
-  addPayment: (payment: Omit<Payment, 'id' | 'status' | 'createdAt'>) => Promise<void>;
+  addPayment: (payment: Omit<Payment, 'id' | 'status'>) => Promise<void>;
   updatePayment: (payment: Payment) => Promise<void>;
   deletePayment: (id: string) => Promise<void>;
   confirmPayment: (id: string, date?: string) => Promise<void>;
@@ -120,8 +118,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [systemLogo, setSystemLogo] = useState<string | null>(null);
 
   // Notification State
+  // Inicializa com uma data muito antiga para que, se for a primeira vez, tudo seja "novo"
+  // OU, se preferir que comece zerado até o próximo login, poderia ser new Date().
+  // Vamos usar uma data antiga padrão, mas tentamos ler do localStorage imediatamente.
   const [lastDocumentsVisit, setLastDocumentsVisit] = useState<string>(new Date(0).toISOString());
-  const [lastPaymentsVisit, setLastPaymentsVisit] = useState<string>(new Date(0).toISOString());
 
   // --- DATA FETCHING ---
   const fetchData = async () => {
@@ -162,6 +162,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setFinancialCategories(catRes.data);
       } else {
           // If no categories in DB, simulate defaults in state to not break UI
+          // Ideally we would insert these into DB here, but let's just use them in memory for now
+          // or seed them.
           const defaultCats: FinancialCategory[] = [
              ...DEFAULT_INCOME_CATEGORIES.map((c, i) => ({ id: `inc-${i}`, name: c, type: 'INCOME' as const })),
              ...DEFAULT_EXPENSE_CATEGORIES.map((c, i) => ({ id: `exp-${i}`, name: c, type: 'EXPENSE' as const }))
@@ -189,12 +191,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (data) {
                     setCurrentUser(data);
                     userFound = true;
-                    // Load notification states
-                    const storedDocVisit = localStorage.getItem(`lastDocumentsVisit_${data.id}`);
-                    if (storedDocVisit) setLastDocumentsVisit(storedDocVisit);
-                    
-                    const storedPayVisit = localStorage.getItem(`lastPaymentsVisit_${data.id}`);
-                    if (storedPayVisit) setLastPaymentsVisit(storedPayVisit);
+                    // Load notification state using specific user ID key
+                    const storedVisit = localStorage.getItem(`lastDocumentsVisit_${data.id}`);
+                    if (storedVisit) setLastDocumentsVisit(storedVisit);
                 }
             }
             
@@ -217,11 +216,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
              const { data } = await supabase.from('users').select('*').eq('email', session.user.email).single();
              if (data) {
                  setCurrentUser(data);
-                 const storedDocVisit = localStorage.getItem(`lastDocumentsVisit_${data.id}`);
-                 if (storedDocVisit) setLastDocumentsVisit(storedDocVisit);
-                 
-                 const storedPayVisit = localStorage.getItem(`lastPaymentsVisit_${data.id}`);
-                 if (storedPayVisit) setLastPaymentsVisit(storedPayVisit);
+                 const storedVisit = localStorage.getItem(`lastDocumentsVisit_${data.id}`);
+                 if (storedVisit) setLastDocumentsVisit(storedVisit);
              }
              fetchData();
         } else if (event === 'SIGNED_OUT') {
@@ -241,7 +237,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!currentUser || currentUser.role !== Role.PROFESSIONAL) return 0;
       
       const count = documents.filter(doc => {
+          // Check if document targets this user or is public
           const isTarget = doc.targetUserId === null || doc.targetUserId === currentUser.id;
+          // Check if it's newer than the last visit
+          // Ensure we compare dates correctly
           const docDate = new Date(doc.createdAt);
           const visitDate = new Date(lastDocumentsVisit);
           
@@ -257,33 +256,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const now = new Date().toISOString();
       setLastDocumentsVisit(now);
       localStorage.setItem(`lastDocumentsVisit_${currentUser.id}`, now);
-  };
-
-  const unreadPaymentsCount = useMemo(() => {
-      if (!currentUser || currentUser.role !== Role.PROFESSIONAL) return 0;
-      
-      const count = payments.filter(pay => {
-          // Check if payment targets this user
-          const isTarget = pay.userId === currentUser.id;
-          
-          // Check if it's newer than the last visit
-          // Try to handle camelCase createdAt or snake_case created_at (if Supabase returned it)
-          const rawDate = pay.createdAt || (pay as any).created_at;
-          const payDate = rawDate ? new Date(rawDate) : new Date(0);
-          const visitDate = new Date(lastPaymentsVisit);
-          
-          const isNew = payDate.getTime() > visitDate.getTime();
-          return isTarget && isNew;
-      }).length;
-
-      return count;
-  }, [payments, currentUser, lastPaymentsVisit]);
-
-  const markPaymentsAsRead = () => {
-      if (!currentUser) return;
-      const now = new Date().toISOString();
-      setLastPaymentsVisit(now);
-      localStorage.setItem(`lastPaymentsVisit_${currentUser.id}`, now);
   };
 
   // --- AUTH ACTIONS ---
@@ -517,19 +489,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // PAYMENTS
-  const addPayment = async (data: Omit<Payment, 'id' | 'status' | 'createdAt'>) => {
+  const addPayment = async (data: Omit<Payment, 'id' | 'status'>) => {
       const newId = generateUUID();
-      // EXPLICIT PAYLOAD CONSTRUCTION to prevent 'createdAt' from being sent
-      const payload = {
-          id: newId,
-          userId: data.userId,
-          amount: data.amount,
-          dueDate: data.dueDate,
-          paidDate: data.paidDate || null,
-          status: 'PENDING'
-      };
-      
-      const { error } = await supabase.from('payments').insert(payload);
+      const { error } = await supabase.from('payments').insert({ ...data, id: newId, status: 'PENDING' });
       if (error) {
           console.error('Error adding payment:', error);
           throw error;
@@ -539,16 +501,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updatePayment = async (data: Payment) => {
-      // EXPLICIT PAYLOAD CONSTRUCTION
-      const payload = {
-          userId: data.userId,
-          amount: data.amount,
-          dueDate: data.dueDate,
-          paidDate: data.paidDate,
-          status: data.status
-      };
-
-      const { error } = await supabase.from('payments').update(payload).eq('id', data.id);
+      const { error } = await supabase.from('payments').update(data).eq('id', data.id);
       if (error) {
           console.error('Error updating payment:', error);
           throw error;
@@ -796,7 +749,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       currentUser, isLoading, users, rooms, allocations, inventory, loans, payments, patients, events, registrations, documents, financialTransactions, financialCategories,
-      unreadDocumentsCount, markDocumentsAsRead, unreadPaymentsCount, markPaymentsAsRead,
+      unreadDocumentsCount, markDocumentsAsRead,
       systemName, systemLogo, updateSystemSettings,
       login, logout, addUser, updateUser, toggleUserStatus, addRoom, updateRoom, deleteRoom,
       addAllocation, deleteAllocation, addPayment, updatePayment, deletePayment, confirmPayment, 

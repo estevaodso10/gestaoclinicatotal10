@@ -1,4 +1,3 @@
-
 export enum Role {
   ADMIN = 'ADMIN',
   PROFESSIONAL = 'PROFESSIONAL',
@@ -67,7 +66,6 @@ export interface Payment {
   dueDate: string;
   paidDate?: string;
   status: 'PENDING' | 'PAID';
-  createdAt?: string; // Optional due to DB schema constraints
 }
 
 export interface Patient {

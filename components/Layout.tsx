@@ -8,7 +8,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, logout, systemName, systemLogo, unreadDocumentsCount, unreadPaymentsCount } = useApp();
+  const { currentUser, logout, systemName, systemLogo, unreadDocumentsCount } = useApp();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -120,7 +120,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <LinkItem to="/pro/events" icon={CalendarDays} label="Eventos" />
               <LinkItem to="/pro/documents" icon={FileText} label="Documentos" badgeCount={unreadDocumentsCount} />
               <LinkItem to="/pro/inventory" icon={Box} label="Inventário" />
-              <LinkItem to="/pro/payments" icon={CreditCard} label="Meus Pagamentos" badgeCount={unreadPaymentsCount} />
+              <LinkItem to="/pro/payments" icon={CreditCard} label="Meus Pagamentos" />
               <LinkItem to="/pro/patients" icon={BriefcaseMedical} label="Pacientes" />
             </>
           )}
