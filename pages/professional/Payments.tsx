@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CheckCircle, Clock, DollarSign, AlertCircle } from 'lucide-react';
 
 const ProfessionalPaymentsPage: React.FC = () => {
-  const { currentUser, payments } = useApp();
+  const { currentUser, payments, markPaymentsAsRead } = useApp();
+
+  // Mark payments as read when the page opens
+  useEffect(() => {
+    markPaymentsAsRead();
+  }, []);
 
   if (!currentUser) return null;
 
