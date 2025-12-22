@@ -265,9 +265,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const count = payments.filter(pay => {
           // Check if payment targets this user
           const isTarget = pay.userId === currentUser.id;
+          
           // Check if it's newer than the last visit
-          // Fallback to dueDate if createdAt is missing for legacy data, 
-          // but for new notifications relies on createdAt
+          // Fallback to epoch 0 if createdAt is missing
           const payDate = pay.createdAt ? new Date(pay.createdAt) : new Date(0);
           const visitDate = new Date(lastPaymentsVisit);
           
