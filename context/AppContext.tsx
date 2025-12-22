@@ -118,6 +118,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [systemLogo, setSystemLogo] = useState<string | null>(null);
 
   // Notification State
+  // Inicializa com uma data muito antiga para que, se for a primeira vez, tudo seja "novo"
+  // OU, se preferir que comece zerado até o próximo login, poderia ser new Date().
+  // Vamos usar uma data antiga padrão, mas tentamos ler do localStorage imediatamente.
   const [lastDocumentsVisit, setLastDocumentsVisit] = useState<string>(new Date(0).toISOString());
 
   // --- DATA FETCHING ---
@@ -188,7 +191,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (data) {
                     setCurrentUser(data);
                     userFound = true;
-                    // Load notification state
+                    // Load notification state using specific user ID key
                     const storedVisit = localStorage.getItem(`lastDocumentsVisit_${data.id}`);
                     if (storedVisit) setLastDocumentsVisit(storedVisit);
                 }
@@ -233,13 +236,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const unreadDocumentsCount = useMemo(() => {
       if (!currentUser || currentUser.role !== Role.PROFESSIONAL) return 0;
       
-      return documents.filter(doc => {
+      const count = documents.filter(doc => {
           // Check if document targets this user or is public
           const isTarget = doc.targetUserId === null || doc.targetUserId === currentUser.id;
           // Check if it's newer than the last visit
-          const isNew = new Date(doc.createdAt) > new Date(lastDocumentsVisit);
+          // Ensure we compare dates correctly
+          const docDate = new Date(doc.createdAt);
+          const visitDate = new Date(lastDocumentsVisit);
+          
+          const isNew = docDate.getTime() > visitDate.getTime();
           return isTarget && isNew;
       }).length;
+
+      return count;
   }, [documents, currentUser, lastDocumentsVisit]);
 
   const markDocumentsAsRead = () => {

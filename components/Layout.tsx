@@ -18,25 +18,30 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const isActive = (path: string) => location.pathname === path;
 
+  // Componente de Link Customizado com Badge Sobreposto
   const LinkItem = ({ to, icon: Icon, label, badgeCount }: { to: string, icon: any, label: string, badgeCount?: number }) => (
     <Link 
       to={to} 
       onClick={() => setIsMobileMenuOpen(false)}
-      className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
+      className={`group flex items-center px-4 py-3 rounded-lg transition-colors relative ${
         isActive(to) 
           ? 'bg-secondary text-white shadow-md' 
           : 'text-gray-400 hover:text-white hover:bg-gray-800'
       }`}
     >
-      <div className="flex items-center space-x-3">
+      {/* Container do Ícone com Badge Relativo */}
+      <div className="relative mr-3">
         <Icon size={20} className="shrink-0" />
-        <span className="font-medium">{label}</span>
-      </div>
-      {badgeCount !== undefined && badgeCount > 0 && (
-          <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-              {badgeCount}
+        
+        {/* Badge de Notificação */}
+        {badgeCount !== undefined && badgeCount > 0 && (
+          <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-primary">
+            {badgeCount > 9 ? '9+' : badgeCount}
           </span>
-      )}
+        )}
+      </div>
+      
+      <span className="font-medium">{label}</span>
     </Link>
   );
 
