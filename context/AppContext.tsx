@@ -300,11 +300,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const { data: authData, error: authError } = await tempClient.auth.signUp({
             email: userData.email,
             password: tempPassword,
+            options: {
+                data: {
+                    name: userData.name,
+                    role: userData.role,
+                    specialty: userData.specialty || '',
+                }
+            }
         });
 
         if (authError) throw new Error(`Erro na Autenticação: ${authError.message}`);
         if (!authData.user) throw new Error("Usuário criado, mas ID não retornado.");
 
+        // Fallback: Tentar inserir diretamente caso o trigger falhe ou demore
+        // Mas se o trigger estiver funcionando corretamente com os metadados acima, isso pode ser redundante (mas seguro).
+        // Se o trigger rodar com sucesso, esta inserção falhará com 'duplicate key', o que já tratamos abaixo.
+        
         const { error: dbError } = await supabase.from('users').insert({ 
             ...userData, 
             id: authData.user.id 
@@ -312,8 +323,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         if (dbError) {
             if (dbError.code === '23505') { 
+                // Se duplicado, significa que o trigger já inseriu ou tentamos inserir duas vezes.
+                // Apenas garantimos que os dados estão atualizados.
                 await supabase.from('users').update(userData).eq('id', authData.user.id);
             } else {
+                // Se não for erro de duplicidade, então é um erro real.
                 throw new Error(`Erro no Banco de Dados: ${dbError.message}`);
             }
         }
@@ -491,7 +505,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // PAYMENTS
   const addPayment = async (data: Omit<Payment, 'id' | 'status'>) => {
       const newId = generateUUID();
-      const { error } = await supabase.from('payments').insert({ ...data, id: newId, status: 'PENDING' });
+      // EXPLICIT PAYLOAD CONSTRUCTION to prevent 'createdAt' from being sent
+      const payload = {
+          id: newId,
+          userId: data.userId,
+          amount: data.amount,
+          dueDate: data.dueDate,
+          paidDate: data.paidDate || null,
+          status: 'PENDING'
+      };
+      
+      const { error } = await supabase.from('payments').insert(payload);
       if (error) {
           console.error('Error adding payment:', error);
           throw error;
@@ -501,7 +525,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updatePayment = async (data: Payment) => {
-      const { error } = await supabase.from('payments').update(data).eq('id', data.id);
+      // EXPLICIT PAYLOAD CONSTRUCTION
+      const payload = {
+          userId: data.userId,
+          amount: data.amount,
+          dueDate: data.dueDate,
+          paidDate: data.paidDate,
+          status: data.status
+      };
+
+      const { error } = await supabase.from('payments').update(payload).eq('id', data.id);
       if (error) {
           console.error('Error updating payment:', error);
           throw error;
